@@ -7,9 +7,11 @@ from app.schemas.project import ProjectCreate, ProjectUpdate
 
 def create_project(
     db: Session,
+    owner_id: int,
     project_data: ProjectCreate,
 ) -> Project:
     project = Project(
+        owner_id=owner_id,
         name=project_data.name,
         description=project_data.description,
     )
@@ -21,8 +23,8 @@ def create_project(
     return project
 
 
-def get_projects(db: Session) -> list[Project]:
-    statement = select(Project).order_by(Project.id)
+def get_projects(db: Session, owner_id: int) -> list[Project]:
+    statement = select(Project).where(Project.owner_id == owner_id).order_by(Project.id)
 
     return list(db.scalars(statement).all())
 
@@ -30,8 +32,14 @@ def get_projects(db: Session) -> list[Project]:
 def get_project(
     db: Session,
     project_id: int,
+    owner_id: int,
 ) -> Project | None:
-    return db.get(Project, project_id)
+    statement = select(Project).where(
+        Project.id == project_id,
+        Project.owner_id == owner_id,
+    )
+
+    return db.scalar(statement)
 
 
 def update_project(

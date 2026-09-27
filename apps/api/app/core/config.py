@@ -10,6 +10,11 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+psycopg://devpilot:devpilot@localhost:5432/devpilot"
 
+    # Auth. secret_key MUST be overridden via environment in any non-dev
+    # deployment; the default below is for local development only.
+    secret_key: str = "dev-only-insecure-change-me"
+    access_token_expire_minutes: int = 60 * 24  # 24 hours
+
     llm_provider: str = "openai"
     llm_model: str = ""
 

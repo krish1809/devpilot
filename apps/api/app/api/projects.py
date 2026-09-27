@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, status
 
-from app.api.deps import DbSession
+from app.api.deps import CurrentUser, DbSession
 from app.schemas.project import (
     ProjectCreate,
     ProjectResponse,
@@ -28,8 +28,9 @@ router = APIRouter(
 def create_project_endpoint(
     project_data: ProjectCreate,
     db: DbSession,
+    current_user: CurrentUser,
 ) -> ProjectResponse:
-    return create_project(db, project_data)
+    return create_project(db, current_user.id, project_data)
 
 
 @router.get(
@@ -38,8 +39,9 @@ def create_project_endpoint(
 )
 def get_projects_endpoint(
     db: DbSession,
+    current_user: CurrentUser,
 ) -> list[ProjectResponse]:
-    return get_projects(db)
+    return get_projects(db, current_user.id)
 
 
 @router.get(
@@ -49,8 +51,9 @@ def get_projects_endpoint(
 def get_project_endpoint(
     project_id: int,
     db: DbSession,
+    current_user: CurrentUser,
 ) -> ProjectResponse:
-    project = get_project(db, project_id)
+    project = get_project(db, project_id, current_user.id)
 
     if project is None:
         raise HTTPException(
@@ -69,8 +72,9 @@ def update_project_endpoint(
     project_id: int,
     project_data: ProjectUpdate,
     db: DbSession,
+    current_user: CurrentUser,
 ) -> ProjectResponse:
-    project = get_project(db, project_id)
+    project = get_project(db, project_id, current_user.id)
 
     if project is None:
         raise HTTPException(
@@ -88,8 +92,9 @@ def update_project_endpoint(
 def delete_project_endpoint(
     project_id: int,
     db: DbSession,
+    current_user: CurrentUser,
 ) -> None:
-    project = get_project(db, project_id)
+    project = get_project(db, project_id, current_user.id)
 
     if project is None:
         raise HTTPException(

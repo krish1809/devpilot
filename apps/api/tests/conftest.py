@@ -117,3 +117,18 @@ def client(_engine, db_session: Session) -> Generator[TestClient, None, None]:
             yield test_client
     finally:
         fastapi_app.dependency_overrides.pop(get_db, None)
+
+
+def register_and_login(client: TestClient, email: str, password: str = "supersecret") -> dict:
+    """Register a user, log in, and return an Authorization header dict."""
+    client.post("/api/v1/auth/register", json={"email": email, "password": password})
+    token = client.post("/api/v1/auth/login", json={"email": email, "password": password}).json()[
+        "access_token"
+    ]
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture()
+def auth_headers(client: TestClient) -> dict:
+    """Authorization header for a default authenticated user."""
+    return register_and_login(client, "owner@example.com")
