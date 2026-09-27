@@ -1,7 +1,7 @@
 # DevPilot — Working Memory
 
 **Last updated:** 2026-09-28
-**Current phase:** Phase 3 COMPLETE locally (auth + ownership + rate limiting + audit); 42 tests passing, migration chain verified drift-free on a fresh DB. Next: apply dev migration + push, then Phase 2 (frontend) or Phase 5 (AI assistant, provider abstraction).
+**Current phase:** Backend Phases 0–3 + Phase 2 frontend COMPLETE and verified. Backend: 42 tests. Frontend: builds clean + 4 vitest tests. Pushed to GitHub. Next: full-stack manual verify, then Phase 5 (AI) or Phase 13 (CI).
 
 > Fast-moving state file for humans and coding agents: what's done, what's in flight, what's next. Update this at the end of every work session. The fuller narrative report is [docs/PROGRESS.md](docs/PROGRESS.md); phase status is in [phases.md](phases.md).
 
@@ -32,6 +32,12 @@
   - Audit log: `audit_logs` table + migration `c1a2b3d4e5f6`; records register/login/project events; `GET /api/v1/audit/me`
   - `CLAUDE.md` added (agent entrypoint → rules.md/memory.md)
   - **Tests: 42 passing**; full migration chain verified on a throwaway DB (`alembic check` → no drift)
+- **Phase 2 — frontend (`apps/web`, done + verified):**
+  - Next.js 14.2.35 (App Router) + TS + Tailwind; design tokens from `design.md`
+  - Auth pages, project list/create, project detail/edit/delete
+  - Typed API client (`lib/api.ts`) + `AuthProvider` (`lib/auth.tsx`); loading/error/empty states
+  - `npm run build` succeeds (7 routes), `npm run test` 4/4 (Vitest). node_modules/.next gitignored; package-lock.json committed
+- **GitHub:** commits pushed to `origin/main` (credential.helper store primed with user's PAT — user to revoke that exposed token). Pushing after each commit going forward.
 
 ## 🟡 In progress / files being worked on
 - *(none actively — clean stopping point)*
@@ -46,7 +52,7 @@
 
 ## ⚠️ Known constraints / gotchas
 - Auth uses **stdlib crypto** (scrypt + HMAC HS256) because the sandbox has no network for `bcrypt`/`PyJWT`; isolated in `app/core/security.py` for easy swap. Set a strong `SECRET_KEY` in any real deploy.
-- **Sandbox can't:** build Docker images, `git push`, install new PyPI/npm packages, call external APIs, or run raw DB deletes (classifier-gated). Owner runs those locally.
+- **Sandbox network:** npm registry + github.com + PyPI are reachable (npm install, git push work); Docker Hub and fonts.googleapis.com are NOT (Docker image builds and web-font fetch fail here). Raw DB row deletes are classifier-gated (need user approval).
 - Do **not** repeat the earlier Alembic reset — verify DB state before any destructive migration op.
 - `.env` is git-ignored and currently holds no real secrets (all keys empty).
 

@@ -16,8 +16,16 @@ FastAPI app + `/health`, Pydantic Settings, SQLAlchemy base/session, PostgreSQL,
 **Remaining:** push the initial commit to GitHub.
 **Exit:** reproducible setup, clean migrations, tested CRUD, lint passing, no secrets committed. → *met locally; push pending.*
 
-## ⬜ Phase 2 — Frontend
-Next.js + TypeScript + Tailwind + shadcn/ui. Project list/create/detail, typed API client, loading/error/empty states, build + tests.
+## ✅ Phase 2 — Frontend
+Next.js 14 (App Router) + TypeScript + Tailwind in `apps/web`.
+- [x] Auth pages (register/login) + `AuthProvider`/`useAuth` (token in localStorage)
+- [x] Project list + create, project detail + edit + delete
+- [x] Typed API client with error mapping (`lib/api.ts`), loading/error/empty states
+- [x] Design tokens from `design.md` (`app/globals.css`, light/dark)
+- [x] Vitest unit tests (API client) + production build verified (`npm run build`)
+
+Deferred: shadcn/ui adoption (hand-rolled Tailwind primitives for now), richer
+component/E2E tests, audit-trail UI.
 
 ## ✅ Phase 3 — Authentication & authorization
 - [x] User model + `users` migration
@@ -77,5 +85,7 @@ Architecture docs, demo, honest evaluation/limitations, security model, clean hi
 ---
 
 ### Suggested next move
-1. **Push** the Phase 1 commit (`git push -u origin main`) and verify the Docker stack on a networked machine.
-2. Then choose: **Phase 2 (frontend)** for a visible demo, or **Phase 3 (auth)** to make the API safe for real data. Recommendation: Phase 3 first — the API is currently unauthenticated.
+Phases 0–3 (backend) and Phase 2 (frontend) are done and verified. Next options:
+1. **Verify the full stack together** on a networked machine: run the API (`make docker-up` or uvicorn) + `cd apps/web && npm run dev`, then register/login/create a project in the browser.
+2. **Phase 5 (AI assistant)** — provider-neutral LLM interface (testable with a mock; real calls need an API key).
+3. **Phase 13 (CI/CD)** — GitHub Actions to run backend + frontend lint/tests on every push.

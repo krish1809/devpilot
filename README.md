@@ -1,6 +1,6 @@
 # DevPilot — AI Software Engineering Platform
 
-**Status:** Early development, Phase 1 (backend foundation)
+**Status:** Backend Phases 0–3 (auth, project ownership, rate limiting, audit) + Phase 2 frontend
 **Repository:** https://github.com/krish1809/devpilot
 
 DevPilot is a human-supervised AI software engineering platform. Its intended workflow is to accept a software task (including a GitHub issue), inspect a repository, create a plan, propose code changes, run validation in an isolated environment, present a diff for review, and—after explicit human approval—create a GitHub pull request.
@@ -153,6 +153,20 @@ ruff format --check .
 
 Tests use a dedicated test database (`devpilot_test` by default, or `TEST_DATABASE_URL`). The suite creates and drops that database itself; destructive setup never runs against the development or production database.
 
+## Frontend (apps/web)
+
+Next.js 14 (App Router) + TypeScript + Tailwind. Auth (register/login) and full
+project CRUD against the API. See [apps/web/README.md](apps/web/README.md).
+
+```bash
+cd apps/web
+cp .env.local.example .env.local   # set NEXT_PUBLIC_API_URL (default http://localhost:8000)
+npm install
+npm run dev                        # http://localhost:3000
+```
+
+Verified with `npm run build` and `npm run test` (Vitest).
+
 ## Current API
 
 Base prefix: `/api/v1`
@@ -166,7 +180,7 @@ Base prefix: `/api/v1`
 | PATCH | `/projects/{project_id}` | Partially update project |
 | DELETE | `/projects/{project_id}` | Delete project |
 
-`name` is required, non-empty, and at most 100 characters. The Project CRUD flow is covered by automated tests and was manually verified in Swagger. Authentication is not yet implemented; do not expose sensitive data through a public deployment.
+`name` is required, non-empty, and at most 100 characters. All project endpoints require a bearer token (`/api/v1/auth/register` + `/login`) and are scoped to the owner; another user's project returns 404. Register/login are rate-limited, and security-relevant actions are recorded to an audit log (`/api/v1/audit/me`). See [docs/API.md](docs/API.md) for the full contract.
 
 ## Development workflow
 1. Inspect repository and Git status before editing.
