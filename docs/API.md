@@ -15,6 +15,9 @@ Versioned prefix: `/api/v1`
 | POST | `/api/v1/auth/login` | Log in; `200` with `{access_token, token_type}`, or `401` |
 | GET | `/api/v1/auth/me` | Current user; `200` with a valid bearer token, else `401` |
 
+`register` and `login` are rate-limited per client IP; exceeding the limit returns
+`429` with a `Retry-After` header.
+
 Authentication is a bearer JWT (HS256). Send it as `Authorization: Bearer <access_token>`.
 Register example:
 ```json
@@ -34,6 +37,15 @@ A project owned by another user returns `404` (existence is not revealed).
 | PATCH | `/api/v1/projects/{project_id}` | Partial update; `200`, `404`, `401` |
 | DELETE | `/api/v1/projects/{project_id}` | Delete; `204`, `404`, `401` |
 
+## Audit
+| Method | Path | Behavior |
+|---|---|---|
+| GET | `/api/v1/audit/me` | Current user's own audit events (newest first); `200`, `401` |
+
+Security-relevant actions are recorded to an append-only `audit_logs` table:
+`user.registered`, `user.login.succeeded`, `user.login.failed`, `project.created`,
+`project.deleted`. Audit rows never contain passwords, tokens, or full payloads.
+
 Create example:
 ```json
 {
@@ -52,7 +64,7 @@ Response includes `id`, `owner_id`, `name`, `description`, `created_at`, and `up
 - Auth is bearer-JWT (HS256) with per-owner project scoping; no roles/teams, no refresh tokens, no token revocation list yet.
 - Tokens are signed with stdlib HMAC + `hashlib.scrypt` password hashing (no external crypto deps in the sandbox); swap to `bcrypt`/`PyJWT` when convenient — see `app/core/security.py`.
 - No pagination yet.
-- No rate limiting yet.
+- Rate limiting is in-memory/per-process (fine for one API process; needs a shared store like Redis for multiple replicas — roadmap Phase 15).
 - No application-wide error envelope yet (validation uses the default FastAPI/Pydantic `422` shape; not-found/auth use `{"detail": "..."}`).
 - No task, repository, or agent-run endpoints yet.
 

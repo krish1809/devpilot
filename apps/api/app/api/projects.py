@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 
 from app.api.deps import CurrentUser, DbSession
 from app.schemas.project import (
@@ -6,6 +6,7 @@ from app.schemas.project import (
     ProjectResponse,
     ProjectUpdate,
 )
+from app.services import audit
 from app.services.project import (
     create_project,
     delete_project,
@@ -13,6 +14,11 @@ from app.services.project import (
     get_projects,
     update_project,
 )
+
+
+def _client_ip(request: Request) -> str | None:
+    return request.client.host if request.client else None
+
 
 router = APIRouter(
     prefix="/projects",
@@ -29,8 +35,17 @@ def create_project_endpoint(
     project_data: ProjectCreate,
     db: DbSession,
     current_user: CurrentUser,
+    request: Request,
 ) -> ProjectResponse:
-    return create_project(db, current_user.id, project_data)
+    project = create_project(db, current_user.id, project_data)
+    audit.record_event(
+        db,
+        audit.PROJECT_CREATED,
+        user_id=current_user.id,
+        detail=f"project:{project.id}",
+        ip_address=_client_ip(request),
+    )
+    return project
 
 
 @router.get(
@@ -93,6 +108,7 @@ def delete_project_endpoint(
     project_id: int,
     db: DbSession,
     current_user: CurrentUser,
+    request: Request,
 ) -> None:
     project = get_project(db, project_id, current_user.id)
 
@@ -103,3 +119,10 @@ def delete_project_endpoint(
         )
 
     delete_project(db, project)
+    audit.record_event(
+        db,
+        audit.PROJECT_DELETED,
+        user_id=current_user.id,
+        detail=f"project:{project_id}",
+        ip_address=_client_ip(request),
+    )

@@ -15,6 +15,12 @@ class Settings(BaseSettings):
     secret_key: str = "dev-only-insecure-change-me"
     access_token_expire_minutes: int = 60 * 24  # 24 hours
 
+    # Rate limiting (in-memory; per-process). For multi-process deployments
+    # this should move to a shared store (Redis) — see roadmap Phase 15.
+    rate_limit_enabled: bool = True
+    auth_rate_limit_max: int = 10
+    auth_rate_limit_window_seconds: int = 60
+
     llm_provider: str = "openai"
     llm_model: str = ""
 

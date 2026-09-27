@@ -128,6 +128,14 @@ def register_and_login(client: TestClient, email: str, password: str = "supersec
     return {"Authorization": f"Bearer {token}"}
 
 
+@pytest.fixture(autouse=True)
+def _reset_rate_limits() -> None:
+    """Clear in-memory rate-limit counters before every test."""
+    from app.core.rate_limit import reset_rate_limits
+
+    reset_rate_limits()
+
+
 @pytest.fixture()
 def auth_headers(client: TestClient) -> dict:
     """Authorization header for a default authenticated user."""

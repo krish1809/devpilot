@@ -19,17 +19,18 @@ FastAPI app + `/health`, Pydantic Settings, SQLAlchemy base/session, PostgreSQL,
 ## ⬜ Phase 2 — Frontend
 Next.js + TypeScript + Tailwind + shadcn/ui. Project list/create/detail, typed API client, loading/error/empty states, build + tests.
 
-## 🟡 Phase 3 — Authentication & authorization
+## ✅ Phase 3 — Authentication & authorization
 - [x] User model + `users` migration
 - [x] Password hashing (`scrypt`) + signed JWT access tokens (`app/core/security.py`)
 - [x] Register / login / me endpoints (`/api/v1/auth/*`)
 - [x] `get_current_user` bearer dependency
 - [x] Project ownership (`owner_id` FK) + per-owner scoping on all project endpoints
 - [x] Cross-user access tests (404 on others' projects)
-- [ ] Rate limiting
-- [ ] Audit events
-- [ ] Roles/teams (RBAC beyond ownership), refresh tokens / revocation
-- [ ] Swap stdlib crypto for `bcrypt`/`PyJWT` once network deps are available
+- [x] Rate limiting on auth endpoints (`app/core/rate_limit.py`, 429 + Retry-After)
+- [x] Audit events (`audit_logs` table, `/api/v1/audit/me`)
+**Deferred (later hardening, not blocking):** roles/teams (RBAC beyond ownership),
+refresh tokens / token revocation, and swapping stdlib crypto for `bcrypt`/`PyJWT`
+once network deps are available (isolated in `app/core/security.py`).
 
 ## ⬜ Phase 4 — GitHub integration
 GitHub App vs OAuth chosen deliberately (prefer App for repo automation). Authorized repo listing, issue retrieval, secure short-lived tokens, webhook signature verification.

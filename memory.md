@@ -1,7 +1,7 @@
 # DevPilot — Working Memory
 
 **Last updated:** 2026-09-28
-**Current phase:** Phase 3 core (auth + ownership) done locally; 34 tests passing. Next: apply dev migration, push, then rate-limiting/audit or Phase 2 frontend.
+**Current phase:** Phase 3 COMPLETE locally (auth + ownership + rate limiting + audit); 42 tests passing, migration chain verified drift-free on a fresh DB. Next: apply dev migration + push, then Phase 2 (frontend) or Phase 5 (AI assistant, provider abstraction).
 
 > Fast-moving state file for humans and coding agents: what's done, what's in flight, what's next. Update this at the end of every work session. The fuller narrative report is [docs/PROGRESS.md](docs/PROGRESS.md); phase status is in [phases.md](phases.md).
 
@@ -28,11 +28,14 @@
   - `/api/v1/auth/register|login|me` — [apps/api/app/api/auth.py](apps/api/app/api/auth.py)
   - `get_current_user` / `CurrentUser` bearer dep — [apps/api/app/api/deps.py](apps/api/app/api/deps.py)
   - Projects now owner-scoped: `owner_id` FK + migration `be53ba0b8d54`; all endpoints require auth; others' projects → 404
-  - **Tests: 34 passing** (auth, security unit tests, CRUD, cross-user isolation)
+  - Rate limiting on auth (`app/core/rate_limit.py`, in-memory sliding window → 429 + Retry-After)
+  - Audit log: `audit_logs` table + migration `c1a2b3d4e5f6`; records register/login/project events; `GET /api/v1/audit/me`
+  - `CLAUDE.md` added (agent entrypoint → rules.md/memory.md)
+  - **Tests: 42 passing**; full migration chain verified on a throwaway DB (`alembic check` → no drift)
 
 ## 🟡 In progress / files being worked on
 - *(none actively — clean stopping point)*
-- ⚠️ **Dev DB migration pending:** dev `projects` table has 2 legacy ownerless rows, so `alembic upgrade head` to `be53ba0b8d54` will fail until they're cleared. Fresh deploys are unaffected (empty table). Test DB is fine (recreated each run).
+- ⚠️ **Dev DB migration pending:** dev is at `8c838c6e7458`; head is now `c1a2b3d4e5f6`. Applying `be53ba0b8d54` (owner_id NOT NULL) fails until the 2 legacy ownerless `projects` rows are cleared. Fresh deploys/CI are unaffected (verified: full chain applies clean on an empty DB with no drift). Test DB is fine (recreated each run).
 
 ## ⏭️ Next actions (in order)
 1. **Clear the 2 legacy dev project rows**, then apply the migration:
