@@ -41,6 +41,7 @@ services:
       ENVIRONMENT: development
       # Override with a strong secret in any real deployment.
       SECRET_KEY: ${SECRET_KEY:-dev-only-insecure-change-me}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
     ports:
       - "8000:8000"
     depends_on:

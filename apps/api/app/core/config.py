@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     auth_rate_limit_max: int = 10
     auth_rate_limit_window_seconds: int = 60
 
+    # Comma-separated list of allowed browser origins for CORS.
+    cors_origins: str = "http://localhost:3000"
+
     llm_provider: str = "openai"
     llm_model: str = ""
 
