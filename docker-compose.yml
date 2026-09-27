@@ -1,0 +1,51 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: devpilot-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: devpilot
+      POSTGRES_PASSWORD: devpilot
+      POSTGRES_DB: devpilot
+    ports:
+      - "5432:5432"
+    volumes:
+      - devpilot-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U devpilot -d devpilot"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # One-shot service that applies Alembic migrations, then exits.
+  migrate:
+    build:
+      context: ./apps/api
+    image: devpilot-api:latest
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://devpilot:devpilot@postgres:5432/devpilot
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: ./apps/api
+    image: devpilot-api:latest
+    container_name: devpilot-api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg://devpilot:devpilot@postgres:5432/devpilot
+      ENVIRONMENT: development
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  devpilot-postgres-data:
