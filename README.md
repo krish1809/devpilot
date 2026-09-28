@@ -1,5 +1,7 @@
 # DevPilot — AI Software Engineering Platform
 
+[![CI](https://github.com/krish1809/devpilot/actions/workflows/ci.yml/badge.svg)](https://github.com/krish1809/devpilot/actions/workflows/ci.yml)
+
 **Status:** Backend Phases 0–3 (auth, project ownership, rate limiting, audit) + Phase 2 frontend
 **Repository:** https://github.com/krish1809/devpilot
 

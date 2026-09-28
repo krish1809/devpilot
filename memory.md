@@ -37,6 +37,7 @@
   - Auth pages, project list/create, project detail/edit/delete
   - Typed API client (`lib/api.ts`) + `AuthProvider` (`lib/auth.tsx`); loading/error/empty states
   - `npm run build` succeeds (7 routes), `npm run test` 4/4 (Vitest). node_modules/.next gitignored; package-lock.json committed
+- **Phase 13 — CI (seed):** `.github/workflows/ci.yml` runs backend (ruff + alembic upgrade + pytest on a Postgres service) and frontend (lint + vitest + build) on push/PR. CI badge in README. Remaining: dependency/image scanning, image publish, deploy gates.
 - **GitHub:** commits pushed to `origin/main` (credential.helper store primed with user's PAT — user to revoke that exposed token). Pushing after each commit going forward.
 
 ## 🟡 In progress / files being worked on

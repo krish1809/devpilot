@@ -67,8 +67,11 @@ Versioned task benchmark; task success, test pass rate, regressions, tool correc
 ## ⬜ Phase 12 — Observability
 Structured logs + run IDs; OpenTelemetry; Prometheus/Grafana where useful; metrics, redaction, retention.
 
-## ⬜ Phase 13 — CI/CD
-GitHub Actions: lint/tests/build, migration checks, dependency/container scanning, image build/publish, deployment approval + rollback.
+## 🟡 Phase 13 — CI/CD
+- [x] GitHub Actions workflow (`.github/workflows/ci.yml`): backend Ruff + migrations + pytest (against a Postgres service) and frontend lint + Vitest + build, on push/PR to main
+- [ ] Dependency/container scanning
+- [ ] Docker image build/publish
+- [ ] Deployment approval + rollback
 
 ## ⬜ Phase 14 — Deployment
 Provider chosen on cost/fit; managed database, secret manager, TLS, backups/restore, health/readiness, deployment docs.
