@@ -1,6 +1,11 @@
 # DevPilot — Coding Agent Context
 
-Read this file and the README, architecture, roadmap, progress, API, and security docs before changing code.
+> **Roadmap authority is [PLAN.md](PLAN.md); the agent entrypoint is [../CLAUDE.md](../CLAUDE.md).**
+> Start there. This file holds background conventions only — where it disagrees
+> with PLAN.md, PLAN.md wins. (The old 17-phase roadmap has been removed.)
+
+Read [PLAN.md](PLAN.md), [../CLAUDE.md](../CLAUDE.md), [../rules.md](../rules.md),
+and the architecture/API/security docs before changing code.
 
 ## Product definition
 DevPilot is a human-supervised AI software engineering workflow: task/issue intake → repository inspection → structured plan → patch generation → isolated validation → human review/approval → GitHub PR. It is a workflow product, not just a chat wrapper.

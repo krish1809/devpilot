@@ -1,68 +1,43 @@
 # DevPilot — Progress Report
 
-**As of:** 2026-09-27
-**Current phase:** Phase 1 — Backend foundation (near complete)
-**Repository:** https://github.com/krish1809/devpilot
+**As of:** 2026-09-30
+**Roadmap authority:** [PLAN.md](PLAN.md) (9 phases). This file tracks progress against those phases; it does not define them.
 
 ## Summary
-The backend foundation is functionally complete and verified. The local backend, PostgreSQL connection, Alembic migration, and Project CRUD endpoints work. Automated tests now run against a dedicated PostgreSQL test database, Ruff lint and format checks pass, input validation was added, and the service is containerized (Dockerfile + compose `api`/`migrate` services). The remaining Phase 1 item is the first meaningful commit/push. AI-agent workflow and later capabilities remain planned.
+Phase 1 (backend foundation) is complete and verified. Parts of Phase 3
+(frontend + basic JWT auth) were built out of order and work. The critical
+next milestone — **Phase 2, the walking skeleton (the whole agent loop, minimal)** —
+has not been started. Everything from Phase 4 onward (real GitHub integration,
+LangGraph agent, RAG, SWE-bench evaluation, MCP/observability, deploy) is not
+started.
 
-## Progress matrix
+## Progress against PLAN.md phases
 
-| Workstream | Status | Notes |
-|---|---|---|
-| GitHub repo and local clone | Done | Public `krish1809/devpilot`, `main` |
-| Python environment | Working | Python 3.12 venv in `apps/api/.venv` |
-| Dependencies | Working | FastAPI/SQLAlchemy/Alembic imports verified |
-| Settings | Implemented | Pydantic Settings |
-| `.env.example` / `.gitignore` | Verified | `.env` ignored; `.env` contains no real secrets |
-| Docker Compose | Working | PostgreSQL 17; plus `api` and `migrate` services |
-| PostgreSQL connection | Verified | Python connection succeeded |
-| FastAPI `/health` | Verified | Returned `{"status":"ok"}` (test + manual) |
-| SQLAlchemy base/session | Implemented | `app/db/base.py`, `app/db/session.py` |
-| Project ORM model | Implemented | `app/models/project.py` |
-| Alembic | Working | Revision `b7eb1608d21a` at head |
-| Project CRUD | Verified | Manual (Swagger) + automated tests |
-| Input validation | Implemented | Non-empty, length-bounded `name` (422 on violation) |
-| Automated tests | Done | 17 tests pass (`tests/`) |
-| Test DB isolation | Done | Dedicated `devpilot_test` DB, `get_db` override, per-test truncation |
-| Ruff lint/format | Passing | `ruff check .` and `ruff format --check .` clean |
-| Containerization | Done | `apps/api/Dockerfile`, `.dockerignore`, compose `api`/`migrate` |
-| Git commit/push | Pending | Repo has no local commits yet |
-| Frontend/auth/GitHub/AI | Planned | Later phases |
+| Phase | Title | Status | Notes |
+|---|---|---|---|
+| 1 | Finish backend foundation | ✅ Done | CRUD API, 44 tests, Ruff green, migrations at `c1a2b3d4e5f6`, Docker Compose |
+| 2 | **Walking skeleton (agent loop)** | ⬜ Not started | **Next task.** Needs an LLM key + Docker |
+| 3 | Frontend + light auth | 🟡 Partial | CRUD UI + JWT auth done; run/diff/approve UI pending (needs Phase 2) |
+| 4 | Real GitHub integration | ⬜ Not started | Repo/issue/PR via fine-grained PAT |
+| 5 | LangGraph agent | ⬜ Not started | Durable multi-step graph + HITL |
+| 6 | Repository RAG | ⬜ Not started | pgvector |
+| 7 | Evaluation on SWE-bench Lite | ⬜ Not started | The resume number |
+| 8 | One MCP server + Langfuse | ⬜ Not started | + prompt-injection refusal test |
+| 9 | Deploy + portfolio polish | 🟡 Seed | CI workflow written (unpushed); deploy + demo README pending |
 
-## Current API
-- `GET /health`
-- `POST /api/v1/projects`
-- `GET /api/v1/projects`
-- `GET /api/v1/projects/{project_id}`
-- `PATCH /api/v1/projects/{project_id}`
-- `DELETE /api/v1/projects/{project_id}`
+## Backend detail (Phase 1)
+- API: `GET /health`; `/api/v1/auth/{register,login,me}`; `/api/v1/projects` CRUD; `/api/v1/audit/me`.
+- Auth is basic JWT (HS256). Projects are owner-scoped; auth is rate-limited; security-relevant actions are audited. (Ownership/rate-limit/audit exceed the plan's minimal auth but are kept — see [../memory.md](../memory.md).)
+- Tests: 44 passing against a dedicated `devpilot_test` DB. Ruff lint + format clean. Migration chain verified drift-free on a fresh DB.
 
-## Test approach
-`tests/conftest.py` provisions a dedicated PostgreSQL database (`devpilot_test`, or `TEST_DATABASE_URL` when set) using the `postgres` maintenance database, creates tables from SQLAlchemy metadata, overrides the `get_db` dependency, and truncates all tables between tests. Destructive setup never touches the development/production database.
-
-Run from `apps/api`:
-```bash
-source .venv/bin/activate
-pytest -v
-ruff check .
-ruff format --check .
-```
-
-## Deployment
-- `apps/api/Dockerfile` builds a non-root Python 3.12 image running Uvicorn.
-- Root `docker-compose.yml` runs `postgres`, a one-shot `migrate` service (`alembic upgrade head`), and the `api` service; the API waits for a healthy database and a successful migration.
-- `make docker-up` builds and starts the full stack; `make check` runs lint + format + tests locally.
-- Note: the Docker image build requires registry access to pull `python:3.12-slim`; the compose file was validated with `docker compose config`, and the image build should be run in an environment with Docker Hub access.
-
-## Migration incident and resolution
-Two initial migrations were accidentally generated for the same table; one created `projects` and the other was empty. During troubleshooting, migration files and the Alembic version record were removed. The `projects` table was later found to still exist, so it was dropped in the initial local database, and a clean migration was generated and applied. The final revision is `b7eb1608d21a`. Do not repeat this reset: verify current state first.
+## Frontend detail (Phase 3, partial)
+- `apps/web`: Next.js 14 (App Router) + TS + Tailwind. Auth pages, project list/create, detail/edit/delete. Typed API client, loading/error/empty states. `npm run build` + Vitest green.
 
 ## Immediate next steps
-1. Make the first meaningful commit of the verified foundation and push to `main`.
-2. Add a CI workflow (Phase 13 seed) to run lint + tests on push, if desired.
-3. Begin Phase 2 (frontend) or Phase 3 (auth) per priority.
+1. Begin **Phase 2 — walking skeleton** (see PLAN.md): pick a small public Python repo with a known failing test; build the clone → LLM patch → sandbox test → diff → approve → PR loop in its crudest form.
+2. Line up an LLM API key and Docker (both on the developer's machine).
+3. Push the pending CI commit once the GitHub token has `workflow` scope.
 
 ## Limitations
-There is no authentication/authorization yet. The API is not ready for public use with sensitive data. The full agent workflow, frontend, GitHub publishing, sandbox, and production infrastructure are target features, not current capabilities.
+The agent, sandbox, GitHub integration, RAG, evaluation, and deployment are not
+built yet. The current app is a solid foundation, not the finished product.

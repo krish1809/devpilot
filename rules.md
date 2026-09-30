@@ -2,13 +2,13 @@
 
 **Last updated:** 2026-09-28
 
-> Rules any contributor or coding agent must follow. Read this + [architecture.md](architecture.md) + [phases.md](phases.md) before changing code. The deeper security rationale is in [docs/SECURITY.md](docs/SECURITY.md); the full agent context is in [docs/AGENT_CONTEXT.md](docs/AGENT_CONTEXT.md).
+> Rules any contributor or coding agent must follow. Read this + [docs/PLAN.md](docs/PLAN.md) (the roadmap) + [architecture.md](architecture.md) before changing code. The deeper security rationale is in [docs/SECURITY.md](docs/SECURITY.md); the agent entrypoint is [CLAUDE.md](CLAUDE.md).
 
 ---
 
 ## 1. Before you code
 - Inspect the actual checkout and `git status` — **docs may lag reality**.
-- Work in small vertical slices; finish the current phase before advancing (see [phases.md](phases.md)).
+- Work in small vertical slices; finish the current phase before advancing (see [docs/PLAN.md](docs/PLAN.md)).
 - State exact file paths and the working directory for commands.
 - Never claim a check passed unless it was actually run; report real results.
 

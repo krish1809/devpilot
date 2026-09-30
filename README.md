@@ -2,12 +2,12 @@
 
 [![CI](https://github.com/krish1809/devpilot/actions/workflows/ci.yml/badge.svg)](https://github.com/krish1809/devpilot/actions/workflows/ci.yml)
 
-**Status:** Backend Phases 0–3 (auth, project ownership, rate limiting, audit) + Phase 2 frontend
+**Status:** Phase 1 done (backend foundation) + partial Phase 3 (frontend + JWT auth). Next: Phase 2, the agent walking skeleton. See [docs/PLAN.md](docs/PLAN.md).
 **Repository:** https://github.com/krish1809/devpilot
 
-DevPilot is a human-supervised AI software engineering platform. Its intended workflow is to accept a software task (including a GitHub issue), inspect a repository, create a plan, propose code changes, run validation in an isolated environment, present a diff for review, and—after explicit human approval—create a GitHub pull request.
+DevPilot is an AI agent that takes a real GitHub issue, inspects a repository, plans a fix, writes a patch, runs the repo's tests in an isolated Docker sandbox, shows you the diff, and—only after explicit human approval—opens a pull request. It is scoped as a portfolio project (see [docs/PLAN.md](docs/PLAN.md) for the roadmap and what is intentionally out of scope).
 
-The workflow below is the target product design. The currently confirmed implementation is the initial FastAPI/PostgreSQL backend and Project CRUD API; future agent, GitHub, frontend, and deployment features are not yet implemented.
+The workflow below is the target design. Currently implemented: a FastAPI/PostgreSQL backend with a Project CRUD API and basic JWT auth, and a Next.js frontend for those. The agent, sandbox, GitHub integration, RAG, evaluation, and deployment are not built yet.
 
 ## Product goals
 - Demonstrate real software engineering: backend, data, AI agents, security, testing, DevOps, and observability.
@@ -194,9 +194,10 @@ Base prefix: `/api/v1`
 7. Commit meaningful, verified work. Do not create empty commits.
 
 ## Documentation
-- [Coding-agent context](docs/AGENT_CONTEXT.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [Roadmap](docs/ROADMAP.md)
+- [Build plan & roadmap (source of truth)](docs/PLAN.md)
+- [Agent entrypoint](CLAUDE.md) · [Rules & guardrails](rules.md)
+- [Architecture](architecture.md) · [deep architecture](docs/ARCHITECTURE.md)
 - [Progress report](docs/PROGRESS.md)
 - [API contract](docs/API.md)
 - [Security design](docs/SECURITY.md)
+- [Product requirements](PRD.md) · [Design system](design.md)

@@ -64,7 +64,7 @@ Response includes `id`, `owner_id`, `name`, `description`, `created_at`, and `up
 - Auth is bearer-JWT (HS256) with per-owner project scoping; no roles/teams, no refresh tokens, no token revocation list yet.
 - Tokens are signed with stdlib HMAC + `hashlib.scrypt` password hashing (no external crypto deps in the sandbox); swap to `bcrypt`/`PyJWT` when convenient — see `app/core/security.py`.
 - No pagination yet.
-- Rate limiting is in-memory/per-process (fine for one API process; needs a shared store like Redis for multiple replicas — roadmap Phase 15).
+- Rate limiting is in-memory/per-process (fine for a single API process; a multi-replica deployment would need a shared store, which is out of scope for this portfolio project).
 - No application-wide error envelope yet (validation uses the default FastAPI/Pydantic `422` shape; not-found/auth use `{"detail": "..."}`).
 - No task, repository, or agent-run endpoints yet.
 

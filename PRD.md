@@ -4,7 +4,7 @@
 **Status:** Living document · Phase 1 complete (backend foundation)
 **Last updated:** 2026-09-28
 
-> This is the single source of truth for *what* DevPilot is and *why*. For *how* it is built, see [architecture.md](architecture.md); for *when*, see [phases.md](phases.md).
+> This describes *what* DevPilot is and *why*. For *how* it is built, see [architecture.md](architecture.md); for *when* (the roadmap and source of truth), see [docs/PLAN.md](docs/PLAN.md).
 
 ---
 
@@ -40,7 +40,7 @@ AI coding assistants today either (a) live inside the editor with no durable run
 ### Implemented (Phase 1)
 - **Project management** — CRUD for projects (FastAPI + PostgreSQL). Validated input, tested, containerized.
 
-### Planned (see [phases.md](phases.md))
+### Planned (see [docs/PLAN.md](docs/PLAN.md))
 - **Frontend** — Next.js UI for projects, tasks, runs, diffs, approvals.
 - **Auth & ownership** — user identity, project ownership, RBAC, rate limiting.
 - **GitHub integration** — connect repos, import issues, open PRs (least-privilege, webhook verification).
@@ -56,7 +56,7 @@ AI coding assistants today either (a) live inside the editor with no durable run
 1. Create a project → 2. Connect a GitHub repo → 3. Submit a task / pick an issue → 4. Inspect repo at a known commit → 5. Generate & review plan → 6. Implement patch in sandbox → 7. Run tests/lint/security → 8. Review diff → 9. Approve → 10. Open branch + PR → 11. Preserve run history.
 
 ## 7. Success metrics
-- **Task success rate** and **test pass rate** on a versioned benchmark (Phase 11).
+- **Resolve rate** on SWE-bench Lite plus test-pass rate (Phase 7).
 - **Tool-call correctness**, latency, and token/cost per run.
 - Zero secrets leaked to prompts/logs/artifacts; zero unapproved publishes.
 

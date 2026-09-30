@@ -15,15 +15,19 @@
 | Database | PostgreSQL 17 | **In use** |
 | Tests / quality | pytest, HTTPX, Ruff | **In use** |
 | Packaging / run | Docker, docker-compose, Uvicorn | **In use** |
-| Frontend | Next.js, React, TypeScript, Tailwind, shadcn/ui | Planned (Phase 2) |
-| Auth | TBD (session/JWT), RBAC | Planned (Phase 3) |
-| Cache / queue | Redis + workers | Later, if needed |
-| Agent orchestration | LangGraph | Planned (Phase 6) |
-| Retrieval | pgvector, embeddings | Planned (Phase 7) |
-| Tools | MCP + internal adapters | Planned (Phase 8) |
-| Sandbox | Docker, resource-limited, network-off | Planned (Phase 9) |
-| Observability | OpenTelemetry, Prometheus, Grafana | Planned (Phase 12) |
-| CI/CD | GitHub Actions | Planned (Phase 13) |
+| Frontend | Next.js, React, TypeScript, Tailwind | In use (Phase 3, partial) |
+| Auth | Basic JWT | In use (Phase 3) |
+| Agent orchestration | LangGraph | Planned (Phase 5) |
+| Sandbox | Docker, resource-limited, network-off | Planned (Phase 2 skeleton → matured Phase 5) |
+| GitHub integration | GitHub REST via fine-grained PAT | Planned (Phase 4) |
+| Retrieval | pgvector, embeddings | Planned (Phase 6) |
+| Evaluation | SWE-bench Lite harness | Planned (Phase 7) |
+| Tools | one custom MCP server | Planned (Phase 8) |
+| Observability | Langfuse (tracing) | Planned (Phase 8) |
+| CI/CD + deploy | GitHub Actions; Vercel/Render/Neon | Planned (Phase 9) |
+
+Out of scope (see [docs/PLAN.md](docs/PLAN.md)): Kubernetes/Terraform, Redis/workers,
+Prometheus/Grafana/OTel, multi-tenancy/RBAC, managed cloud sandboxes, GitHub App.
 
 ## 2. High-level app flow
 
@@ -79,12 +83,12 @@ devpilot/
 ## 4. Planned structure (added only when implemented)
 ```text
 apps/api/app/
-├── agents/         # LangGraph nodes/state (Phase 6)
-├── integrations/   # GitHub/LLM provider adapters (Phase 4-5)
-└── core/security.py  # auth/RBAC helpers (Phase 3)
-apps/web/           # Next.js frontend (Phase 2)
-infra/              # IaC, if justified (Phase 16)
-.github/workflows/  # CI (Phase 13)
+├── agents/         # LangGraph nodes/state (Phase 5)
+├── sandbox/        # throwaway Docker runner for repo code (Phase 2)
+├── integrations/   # GitHub + LLM provider adapters (Phase 2/4/5)
+└── core/security.py  # auth helpers (Phase 3, present)
+apps/web/           # Next.js frontend (Phase 3, present)
+.github/workflows/  # CI (Phase 9, present)
 ```
 
 ## 5. Module boundaries (rules of thumb)
