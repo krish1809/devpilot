@@ -1,8 +1,11 @@
 import type {
+  AgentRun,
   AuditLog,
   Project,
   ProjectCreateInput,
   ProjectUpdateInput,
+  Task,
+  TaskCreateInput,
   Token,
   User,
 } from "./types";
@@ -129,4 +132,23 @@ export const api = {
     request<void>(`/api/v1/projects/${id}`, { method: "DELETE" }),
 
   myAudit: () => request<AuditLog[]>("/api/v1/audit/me"),
+
+  // --- Agent ---
+  listTasks: () => request<Task[]>("/api/v1/tasks"),
+
+  createTask: (input: TaskCreateInput) =>
+    request<Task>("/api/v1/tasks", { method: "POST", body: input }),
+
+  getTask: (id: number) => request<Task>(`/api/v1/tasks/${id}`),
+
+  runTask: (id: number) =>
+    request<AgentRun>(`/api/v1/tasks/${id}/run`, { method: "POST" }),
+
+  getRun: (id: number) => request<AgentRun>(`/api/v1/runs/${id}`),
+
+  approveRun: (id: number, decision: "approved" | "rejected", baseBranch = "main") =>
+    request<AgentRun>(`/api/v1/runs/${id}/approve`, {
+      method: "POST",
+      body: { decision, base_branch: baseBranch },
+    }),
 };

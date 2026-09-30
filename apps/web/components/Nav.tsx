@@ -25,7 +25,17 @@ export function Nav() {
         </Link>
 
         {user ? (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Link href="/tasks">
+              <Button variant="ghost" size="sm">
+                Tasks
+              </Button>
+            </Link>
+            <Link href="/projects">
+              <Button variant="ghost" size="sm">
+                Projects
+              </Button>
+            </Link>
             <span className="hidden text-sm text-muted-foreground sm:inline">
               {user.email}
             </span>

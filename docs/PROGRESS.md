@@ -17,7 +17,7 @@ started.
 |---|---|---|---|
 | 1 | Finish backend foundation | ✅ Done | CRUD API, Ruff green, migrations, Docker Compose |
 | 2 | **Walking skeleton (agent loop)** | ✅ Done | Groq + Docker sandbox + real PR; 64 tests |
-| 3 | Frontend + light auth | 🟡 Partial | CRUD UI + JWT auth done; agent run/diff/approve UI pending |
+| 3 | Frontend + light auth | ✅ Done | Auth + projects + agent UI (create task, run, view diff/events, approve→PR). SSE live-streaming deferred (runs are synchronous) |
 | 4 | Real GitHub integration | ⬜ Not started | Repo/issue/PR via fine-grained PAT |
 | 5 | LangGraph agent | ⬜ Not started | Durable multi-step graph + HITL |
 | 6 | Repository RAG | ⬜ Not started | pgvector |
@@ -30,8 +30,11 @@ started.
 - Auth is basic JWT (HS256). Projects are owner-scoped; auth is rate-limited; security-relevant actions are audited. (Ownership/rate-limit/audit exceed the plan's minimal auth but are kept — see [../memory.md](../memory.md).)
 - Tests: 44 passing against a dedicated `devpilot_test` DB. Ruff lint + format clean. Migration chain verified drift-free on a fresh DB.
 
-## Frontend detail (Phase 3, partial)
-- `apps/web`: Next.js 14 (App Router) + TS + Tailwind. Auth pages, project list/create, detail/edit/delete. Typed API client, loading/error/empty states. `npm run build` + Vitest green.
+## Frontend detail (Phase 3)
+- `apps/web`: Next.js 14 (App Router) + TS + Tailwind. Auth pages, project list/create + detail/edit/delete.
+- **Agent UI:** `/tasks` (list + create task) and `/tasks/[id]` (Run the agent, view status badge, event timeline, proposed diff, sandbox result, and **Approve → open PR / Reject**). Post-login lands on `/tasks`.
+- Typed API client (`lib/api.ts`) covers auth, projects, and agent endpoints. `npm run build`, `npm run lint`, and Vitest all green.
+- Deferred: live run streaming via SSE (needs async runs); a per-task run history list.
 
 ## Immediate next steps
 1. Begin **Phase 2 — walking skeleton** (see PLAN.md): pick a small public Python repo with a known failing test; build the clone → LLM patch → sandbox test → diff → approve → PR loop in its crudest form.

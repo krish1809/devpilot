@@ -3,9 +3,9 @@
 **Last updated:** 2026-09-30
 **Roadmap authority:** [docs/PLAN.md](docs/PLAN.md) (9 phases). Ignore old phase numbers.
 
-**Current position:** Phase 1 ✅ and Phase 2 ✅ (walking skeleton) complete and proven
-end-to-end with a real Groq patch + real PR. Phase 3 🟡 partial (CRUD UI + JWT auth;
-agent/run/diff/approve UI still to add). **Next: Phase 3 UI for the agent loop, or Phase 4 (GitHub integration).**
+**Current position:** Phases 1 ✅, 2 ✅ (walking skeleton, real PR), 3 ✅ (frontend:
+auth + projects + agent UI). **Next: Phase 4 — real GitHub integration** (list repos,
+import issues, target arbitrary repos). SSE live run-streaming deferred from Phase 3.
 
 > Update this at the end of every session. Fuller tracking: [docs/PROGRESS.md](docs/PROGRESS.md).
 
@@ -18,10 +18,11 @@ agent/run/diff/approve UI still to add). **Next: Phase 3 UI for the agent loop, 
 - Migrations at head `c1a2b3d4e5f6`; chain verified drift-free on a fresh DB
 - CORS middleware (so the web app can call the API)
 
-## 🟡 Phase 3 — Frontend + light auth (partially done, out of order)
-- `apps/web`: Next.js 14 + TS + Tailwind; auth pages + project list/create/detail; typed API client; loading/error/empty states. `npm run build` + 4 Vitest tests pass.
+## ✅ Phase 3 — Frontend + light auth (done)
+- `apps/web`: Next.js 14 + TS + Tailwind; auth pages + project list/create/detail; typed API client; loading/error/empty states. `npm run build`, lint, and 4 Vitest tests pass.
 - Basic JWT auth (register/login/me) + `get_current_user`.
-- **Still needed for Phase 3 proper:** live run status (SSE), diff view, approve/reject — these depend on the Phase 2 agent existing first.
+- **Agent UI:** `/tasks` (list + create) and `/tasks/[id]` — Run the agent, see status badge + event timeline + proposed diff + sandbox result, and Approve→PR / Reject. Nav has Tasks/Projects; post-login → `/tasks`.
+- Deferred: SSE live run streaming (runs are synchronous); per-task run history list.
 
 ## 🟡 Phase 9 — Deploy + polish (seed only)
 - GitHub Actions CI (`.github/workflows/ci.yml`) — backend ruff+migrations+pytest and frontend lint+vitest+build. **Commit `2d14c97` is local/unpushed** (token lacks `workflow` scope). Deploy (Vercel/Render/Neon) + demo README not done.

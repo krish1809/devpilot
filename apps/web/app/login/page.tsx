@@ -22,7 +22,7 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!loading && user) router.replace("/projects");
+    if (!loading && user) router.replace("/tasks");
   }, [user, loading, router]);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -31,7 +31,7 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       await login(email, password);
-      router.push("/projects");
+      router.push("/tasks");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong");
     } finally {
