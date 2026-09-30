@@ -15,9 +15,9 @@ started.
 
 | Phase | Title | Status | Notes |
 |---|---|---|---|
-| 1 | Finish backend foundation | ✅ Done | CRUD API, 44 tests, Ruff green, migrations at `c1a2b3d4e5f6`, Docker Compose |
-| 2 | **Walking skeleton (agent loop)** | ⬜ Not started | **Next task.** Needs an LLM key + Docker |
-| 3 | Frontend + light auth | 🟡 Partial | CRUD UI + JWT auth done; run/diff/approve UI pending (needs Phase 2) |
+| 1 | Finish backend foundation | ✅ Done | CRUD API, Ruff green, migrations, Docker Compose |
+| 2 | **Walking skeleton (agent loop)** | ✅ Done | Groq + Docker sandbox + real PR; 64 tests |
+| 3 | Frontend + light auth | 🟡 Partial | CRUD UI + JWT auth done; agent run/diff/approve UI pending |
 | 4 | Real GitHub integration | ⬜ Not started | Repo/issue/PR via fine-grained PAT |
 | 5 | LangGraph agent | ⬜ Not started | Durable multi-step graph + HITL |
 | 6 | Repository RAG | ⬜ Not started | pgvector |

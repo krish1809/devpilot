@@ -2,6 +2,8 @@ from fastapi import APIRouter, HTTPException, status
 
 from app.api.deps import CurrentUser, DbSession
 from app.schemas.agent import (
+    ApprovalRequest,
+    PullRequestResponse,
     RunEventResponse,
     RunResponse,
     TaskCreate,
@@ -17,6 +19,8 @@ def _run_response(db, run) -> RunResponse:  # noqa: ANN001
     resp.events = [
         RunEventResponse.model_validate(e) for e in agent_service.list_run_events(db, run.id)
     ]
+    pr = agent_service.get_pull_request(db, run.id)
+    resp.pull_request = PullRequestResponse.model_validate(pr) if pr else None
     return resp
 
 
@@ -58,4 +62,19 @@ def get_run(run_id: int, db: DbSession, current_user: CurrentUser) -> RunRespons
     run = agent_service.get_run(db, run_id, current_user.id)
     if run is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
+    return _run_response(db, run)
+
+
+@router.post("/runs/{run_id}/approve", response_model=RunResponse)
+def approve_run(
+    run_id: int, data: ApprovalRequest, db: DbSession, current_user: CurrentUser
+) -> RunResponse:
+    """Approve (→ open a PR) or reject a run. Requires the run to be validated."""
+    run = agent_service.get_run(db, run_id, current_user.id)
+    if run is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
+    try:
+        run = agent_service.approve_run(db, run, data.decision, base_branch=data.base_branch)
+    except agent_service.ApprovalError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     return _run_response(db, run)

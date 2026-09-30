@@ -1,6 +1,7 @@
 import tempfile
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -158,3 +159,74 @@ def test_run_agent_records_error_on_bad_repo(db_session: Session, auth_headers: 
 def test_extract_file_contents_strips_fences() -> None:
     fenced = "```python\nprint('hi')\n```"
     assert agent_service._extract_file_contents(fenced) == "print('hi')\n"
+
+
+# --------------------------------------------------------------------------- #
+# Approval + PR (PR call mocked)
+# --------------------------------------------------------------------------- #
+def _make_validated_run(db_session: Session, monkeypatch):
+    from app.services.user import get_user_by_email
+
+    owner = get_user_by_email(db_session, "owner@example.com")
+    task = agent_service.create_task(
+        db_session,
+        owner.id,
+        repo_url=_make_fixture_repo(),
+        base_commit=None,
+        test_command="python -m unittest test_calculator",
+        target_path="calculator.py",
+    )
+    calls = {"n": 0}
+
+    def fake_sandbox(workspace, command, **kwargs):  # noqa: ANN001, ANN003
+        calls["n"] += 1
+        return SandboxResult(
+            passed=calls["n"] > 1, exit_code=0 if calls["n"] > 1 else 1, output="…"
+        )
+
+    monkeypatch.setattr(agent_service, "run_in_sandbox", fake_sandbox)
+    return agent_service.run_agent(
+        db_session, task, llm=_FakeLLM("def add(a, b):\n    return a + b\n")
+    )
+
+
+def test_reject_run(db_session: Session, auth_headers: dict, monkeypatch):
+    run = _make_validated_run(db_session, monkeypatch)
+    run = agent_service.approve_run(db_session, run, "rejected")
+    assert run.status == "rejected"
+
+
+def test_approve_non_validated_raises(db_session: Session, auth_headers: dict, monkeypatch):
+    run = _make_validated_run(db_session, monkeypatch)
+    run.status = "test_failed"  # simulate a non-approvable state
+    db_session.commit()
+    with pytest.raises(agent_service.ApprovalError):
+        agent_service.approve_run(db_session, run, "approved")
+
+
+def test_approve_validated_opens_pr(db_session: Session, auth_headers: dict, monkeypatch):
+    run = _make_validated_run(db_session, monkeypatch)
+
+    monkeypatch.setattr(
+        agent_service.github_pr,
+        "open_pull_request",
+        lambda *a, **k: {"url": "https://github.com/x/y/pull/1", "number": 1},
+    )
+    run = agent_service.approve_run(db_session, run, "approved")
+
+    assert run.status == "published"
+    pr = agent_service.get_pull_request(db_session, run.id)
+    assert pr is not None and pr.number == 1
+
+
+def test_approve_publish_failure_is_recorded(db_session: Session, auth_headers: dict, monkeypatch):
+    run = _make_validated_run(db_session, monkeypatch)
+
+    def boom(*a, **k):
+        raise agent_service.github_pr.PublishError("diff does not apply")
+
+    monkeypatch.setattr(agent_service.github_pr, "open_pull_request", boom)
+    run = agent_service.approve_run(db_session, run, "approved")
+
+    assert run.status == "publish_failed"
+    assert "does not apply" in (run.error or "")

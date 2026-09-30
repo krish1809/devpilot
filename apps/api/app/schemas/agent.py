@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -21,6 +22,22 @@ class TaskResponse(BaseModel):
     test_command: str
     target_path: str
     description: str | None
+    created_at: datetime
+
+
+class ApprovalRequest(BaseModel):
+    decision: Literal["approved", "rejected"]
+    # gh publishes against this base branch of the target repo.
+    base_branch: str = Field(default="main", max_length=200)
+
+
+class PullRequestResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    url: str
+    number: int | None
+    status: str
     created_at: datetime
 
 
@@ -48,3 +65,4 @@ class RunResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     events: list[RunEventResponse] = []
+    pull_request: PullRequestResponse | None = None

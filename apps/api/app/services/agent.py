@@ -16,11 +16,16 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.integrations import git_ops
+from app.integrations import git_ops, github_pr
 from app.integrations.llm import LLMError, LLMProvider, Message, get_llm_provider
-from app.models.agent_run import AgentRun, RunEvent, RunStatus
+from app.models.agent_run import AgentRun, Approval, PullRequest, RunEvent, RunStatus
 from app.models.task import Task
 from app.sandbox.runner import run_in_sandbox
+
+
+class ApprovalError(Exception):
+    """Raised when a run cannot be approved in its current state."""
+
 
 _SYSTEM_PROMPT = (
     "You are an expert software engineer. You fix a failing test by editing exactly "
@@ -148,3 +153,64 @@ def list_run_events(db: Session, run_id: int) -> list[RunEvent]:
     return list(
         db.scalars(select(RunEvent).where(RunEvent.run_id == run_id).order_by(RunEvent.seq)).all()
     )
+
+
+def get_pull_request(db: Session, run_id: int) -> PullRequest | None:
+    return db.scalar(select(PullRequest).where(PullRequest.run_id == run_id))
+
+
+def approve_run(
+    db: Session, run: AgentRun, decision: str, *, base_branch: str = "main"
+) -> AgentRun:
+    """Record a human decision; on approval of a validated run, open a PR.
+
+    Publishing is impossible without an explicit approval of a run whose test
+    actually passed (human-in-the-loop gate).
+    """
+    db.add(Approval(run_id=run.id, decision=decision))
+
+    if decision == "rejected":
+        run.status = RunStatus.REJECTED
+        _record(db, run, "approve", "Run rejected by reviewer")
+        db.commit()
+        db.refresh(run)
+        return run
+
+    if run.status != RunStatus.VALIDATED:
+        raise ApprovalError("Only a validated run (passing test) can be approved for publishing.")
+
+    run.status = RunStatus.APPROVED
+    _record(db, run, "approve", "Run approved; opening pull request")
+    db.commit()
+
+    task = db.get(Task, run.task_id)
+    title = f"DevPilot: fix failing test in {task.target_path}"
+    body = (
+        f"Automated fix by DevPilot so that `{task.test_command}` passes.\n\n"
+        f"Task: {task.description or task.target_path}\n\n"
+        f"Run #{run.id} · model `{run.model}`."
+    )
+    try:
+        pr = github_pr.open_pull_request(
+            task.repo_url,
+            task.base_commit,
+            run.diff or "",
+            branch=f"devpilot/run-{run.id}",
+            base_branch=base_branch,
+            title=title,
+            body=body,
+        )
+    except github_pr.PublishError as exc:
+        run.status = RunStatus.PUBLISH_FAILED
+        run.error = str(exc)[:2000]
+        _record(db, run, "publish", f"Publish failed: {exc}")
+        db.commit()
+        db.refresh(run)
+        return run
+
+    db.add(PullRequest(run_id=run.id, url=pr["url"], number=pr["number"], status="open"))
+    run.status = RunStatus.PUBLISHED
+    _record(db, run, "publish", f"Opened PR: {pr['url']}")
+    db.commit()
+    db.refresh(run)
+    return run

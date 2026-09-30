@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/krish1809/devpilot/actions/workflows/ci.yml/badge.svg)](https://github.com/krish1809/devpilot/actions/workflows/ci.yml)
 
-**Status:** Phase 1 done (backend foundation) + partial Phase 3 (frontend + JWT auth). Next: Phase 2, the agent walking skeleton. See [docs/PLAN.md](docs/PLAN.md).
+**Status:** Phases 1–2 done — backend foundation + the agent **walking skeleton** (turns a failing test into a fix and a real PR). Phase 3 (frontend) partially done. See [docs/PLAN.md](docs/PLAN.md).
 **Repository:** https://github.com/krish1809/devpilot
 
 DevPilot is an AI agent that takes a real GitHub issue, inspects a repository, plans a fix, writes a patch, runs the repo's tests in an isolated Docker sandbox, shows you the diff, and—only after explicit human approval—opens a pull request. It is scoped as a portfolio project (see [docs/PLAN.md](docs/PLAN.md) for the roadmap and what is intentionally out of scope).

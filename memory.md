@@ -3,8 +3,9 @@
 **Last updated:** 2026-09-30
 **Roadmap authority:** [docs/PLAN.md](docs/PLAN.md) (9 phases). Ignore old phase numbers.
 
-**Current position:** Phase 1 ✅ complete. Phase 3 🟡 partially done out of order
-(CRUD UI + JWT auth). **Phase 2 (walking skeleton) is the next and critical task — not started.**
+**Current position:** Phase 1 ✅ and Phase 2 ✅ (walking skeleton) complete and proven
+end-to-end with a real Groq patch + real PR. Phase 3 🟡 partial (CRUD UI + JWT auth;
+agent/run/diff/approve UI still to add). **Next: Phase 3 UI for the agent loop, or Phase 4 (GitHub integration).**
 
 > Update this at the end of every session. Fuller tracking: [docs/PROGRESS.md](docs/PROGRESS.md).
 
@@ -28,10 +29,20 @@
 ## Built beyond the plan's minimal scope (kept, harmless)
 - Per-owner project scoping (`owner_id`), auth rate limiting, audit log (`audit_logs`, `/audit/me`). Plan keeps auth minimal and puts audit in Phase 8; these are ahead of schedule and reusable. Kept to avoid churn.
 
-## ⬜ Phase 2 — Walking skeleton (NEXT, most important)
-Not started. Target: one small public Python repo + a known failing test → single endpoint that clones at a commit → sends failing test + relevant file(s) to an LLM in one call → applies patch in a throwaway Docker container → runs that one test → captures pass/fail + diff → minimal approve → opens a PR. New data: Task, AgentRun, RunEvent, Approval, PullRequest. No LangGraph/RAG/multi-agent yet.
-
-**Blockers to line up (user's machine):** an LLM API key (Groq/Gemini free tier, or local Ollama) and Docker for the sandbox.
+## ✅ Phase 2 — Walking skeleton (DONE, proven end-to-end)
+The whole loop works: clone at commit → run failing test in sandbox → one Groq
+call for a fixed file → apply → re-run test in sandbox → diff + pass/fail → human
+approve → open real PR.
+- LLM: `app/integrations/llm.py` (Groq, `openai/gpt-oss-120b`, bounded retries)
+- Sandbox: `app/sandbox/runner.py` (throwaway container, `--network none`, limits)
+- Git/PR: `app/integrations/git_ops.py`, `app/integrations/github_pr.py` (gh CLI)
+- Orchestration: `app/services/agent.py`; endpoints in `app/api/agent.py`:
+  POST/GET `/api/v1/tasks`, POST `/tasks/{id}/run`, GET `/runs/{id}`, POST `/runs/{id}/approve`
+- Data: Task, AgentRun, RunEvent, Approval, PullRequest (migration b698e033df6b)
+- **Proof:** opened https://github.com/krish1809/devpilot-demo/pull/1 from a planted
+  failing unittest (fix `a - b` → `a + b`). Demo target repo: `krish1809/devpilot-demo`.
+- Tests: 64 total (agent orchestration + approval mocked; sandbox docker-gated).
+- Note: `/tasks/{id}/run` is synchronous for now (moves to a worker in a later phase).
 
 ## ⚠️ Constraints / gotchas
 - **Sandbox network:** npm registry + github.com + PyPI reachable (npm install & git push work); Docker Hub + fonts.googleapis.com NOT (Docker image builds & web-font fetch fail here). Raw DB row deletes are approval-gated.

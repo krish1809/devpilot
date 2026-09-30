@@ -46,6 +46,24 @@ Security-relevant actions are recorded to an append-only `audit_logs` table:
 `user.registered`, `user.login.succeeded`, `user.login.failed`, `project.created`,
 `project.deleted`. Audit rows never contain passwords, tokens, or full payloads.
 
+## Agent (walking skeleton)
+The agent turns a failing test into a fix and, after human approval, a PR.
+All endpoints require authentication and are owner-scoped.
+
+| Method | Path | Behavior |
+|---|---|---|
+| POST | `/api/v1/tasks` | Create a task (`repo_url`, `base_commit?`, `test_command`, `target_path`, `description?`); `201` |
+| GET | `/api/v1/tasks` | List caller's tasks; `200` |
+| GET | `/api/v1/tasks/{id}` | Get a task; `200`/`404` |
+| POST | `/api/v1/tasks/{id}/run` | Run the agent synchronously; returns the run with `diff`, `test_passed`, `status`, and `events` |
+| GET | `/api/v1/runs/{id}` | Get a run (with events and any pull request); `200`/`404` |
+| POST | `/api/v1/runs/{id}/approve` | `{decision: "approved"\|"rejected", base_branch?}`. Approving a **validated** run opens a PR; `409` if the run is not validated |
+
+Run `status` values: `running`, `validated`, `test_failed`, `error`, `approved`,
+`rejected`, `published`, `publish_failed`. Publishing is impossible without an
+explicit approval of a run whose test actually passed (human-in-the-loop gate).
+Repository code is only ever executed in the disposable Docker sandbox.
+
 Create example:
 ```json
 {
