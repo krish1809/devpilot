@@ -66,7 +66,7 @@ CONFIGS = {
 
 # Prompt/budget overrides so every request fits Groq's free tier (8k tokens/min).
 EVAL_SETTINGS = {
-    "agent_max_attempts": 2,  # no tests in the loop: retries only re-try failed edits
+    "agent_max_attempts": 3,  # no tests in the loop: retries only re-try failed edits
     "agent_whole_file_chars": 6_000,
     "agent_excerpt_chars": 5_000,
     "agent_issue_chars": 4_000,

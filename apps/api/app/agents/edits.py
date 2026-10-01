@@ -10,10 +10,17 @@ only the windows most related to the issue/plan and answers with edit blocks:
     =======
     replacement lines
     >>>>>>> REPLACE
+
+Models don't always comply exactly, so application is forgiving in two
+bounded ways: a unified diff (``@@`` hunks) is accepted in place of blocks, and
+a SEARCH that isn't found verbatim may match the single most similar window of
+the file (≥ 3 lines, ≥ 92% similar, clearly better than any other window).
+Anything less is rejected with a precise error that is fed back to the model.
 """
 
 from __future__ import annotations
 
+import difflib
 import math
 import re
 
@@ -28,6 +35,12 @@ _CONTEXT_LINES = 5
 _EDIT_RE = re.compile(
     r"<<<<<<<\s*SEARCH[^\n]*\n(.*?)\n?=======[^\n]*\n(.*?)\n?>>>>>>>\s*REPLACE", re.DOTALL
 )
+
+
+_FUZZY_RATIO = 0.92
+_FUZZY_MIN_LINES = 3  # short snippets match unrelated lines too easily
+_FUZZY_MARGIN = 0.03  # the best window must clearly beat the runner-up
+_HUNK_RE = re.compile(r"^@@[^\n]*@@[^\n]*\n", re.MULTILINE)
 
 
 class EditError(Exception):
@@ -97,9 +110,59 @@ def _find_loose(text: str, search: str) -> tuple[int, int] | None:
     return start, end
 
 
+def _find_fuzzy(text: str, search: str) -> tuple[int, int] | None:
+    """The unique line window most similar to ``search`` (ratio ≥ threshold)."""
+    want = search.splitlines()
+    have = text.splitlines(keepends=True)
+    n = len(want)
+    if n < _FUZZY_MIN_LINES or n > len(have):
+        return None
+    target = "\n".join(w.strip() for w in want)
+    scored = []
+    for i in range(len(have) - n + 1):
+        window = "\n".join(h.strip() for h in have[i : i + n])
+        ratio = difflib.SequenceMatcher(None, target, window, autojunk=False).ratio()
+        if ratio >= _FUZZY_RATIO:
+            scored.append((ratio, i))
+    if not scored:
+        return None
+    scored.sort(reverse=True)
+    if len(scored) > 1 and scored[1][0] > scored[0][0] - _FUZZY_MARGIN:
+        return None  # ambiguous
+    i = scored[0][1]
+    start = sum(len(x) for x in have[:i])
+    return start, start + sum(len(x) for x in have[i : i + n])
+
+
+def diff_to_blocks(reply: str) -> list[tuple[str, str]]:
+    """Turn unified-diff hunks into (search, replace) pairs."""
+    blocks = []
+    for m in _HUNK_RE.finditer(reply):
+        body = reply[m.end() :]
+        nxt = re.search(r"^(@@|diff --git|--- |```)", body, re.MULTILINE)
+        body = body[: nxt.start()] if nxt else body
+        old, new = [], []
+        for line in body.splitlines():
+            if line.startswith("-"):
+                old.append(line[1:])
+            elif line.startswith("+"):
+                new.append(line[1:])
+            elif line.startswith(" ") or line == "":
+                old.append(line[1:])
+                new.append(line[1:])
+            elif line.startswith("\\"):
+                continue  # "\ No newline at end of file"
+        while old and new and old[-1] == "" and new[-1] == "":
+            old.pop()
+            new.pop()
+        if old:
+            blocks.append(("\n".join(old), "\n".join(new)))
+    return blocks
+
+
 def apply_edits(original: str, reply: str) -> str:
-    """Apply every SEARCH/REPLACE block in ``reply`` to ``original``."""
-    blocks = _EDIT_RE.findall(reply)
+    """Apply every SEARCH/REPLACE block (or diff hunk) in ``reply`` to ``original``."""
+    blocks = _EDIT_RE.findall(reply) or diff_to_blocks(reply)
     if not blocks:
         raise EditError("No SEARCH/REPLACE blocks found in the reply.")
     text = original
@@ -115,7 +178,7 @@ def apply_edits(original: str, reply: str) -> str:
                 f"SEARCH block matches {count} places; include more surrounding lines: "
                 f"{search.strip().splitlines()[0][:120]!r}"
             )
-        span = _find_loose(text, search)
+        span = _find_loose(text, search) or _find_fuzzy(text, search)
         if span is None:
             raise EditError(
                 "SEARCH block not found in the file (it must be copied exactly): "

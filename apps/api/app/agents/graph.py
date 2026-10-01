@@ -593,7 +593,8 @@ def _code(deps: AgentDeps, deadline: float | None, state: AgentState) -> dict:
     try:
         candidate = apply_edits(state["original"], reply)
     except EditError as exc:
-        _event(deps, run_id, "code", f"Edit could not be applied: {exc}")
+        snippet = " ".join(reply.split())[:300]
+        _event(deps, run_id, "code", f"Edit could not be applied: {exc} | reply: {snippet}")
         return {"edit_error": str(exc), "feedback": str(exc), "last_reply": reply,
                 "attempts": attempt, **usage}  # fmt: skip
     return {"candidate": candidate, "last_reply": reply, "edit_error": "",

@@ -101,3 +101,31 @@ def test_edit_failures_exhaust_attempts(
     agent_deps.llm_factory = lambda: ScriptedLLM("plan", "no blocks here")
     run = runner.run_to_completion(db_session, _big_repo_task(db_session, tmp_path), agent_deps)
     assert run.status == "error" and "No applicable edit" in run.error
+
+
+def test_unified_diff_is_accepted_in_place_of_blocks() -> None:
+    reply = (
+        "```diff\n--- a/calc.py\n+++ b/calc.py\n@@ -2001,2 +2001,2 @@\n"
+        " def percent(part, whole):\n-    return part // whole * 100\n"
+        "+    return part / whole * 100\n```"
+    )
+    assert "    return part / whole * 100" in apply_edits(BIG, reply)
+
+
+def test_near_miss_search_matches_fuzzily_but_only_when_unique() -> None:
+    near = (
+        "<<<<<<< SEARCH\n    return x + 999\n\ndef percent(part, whole):\n"
+        "    return part // whole *100\n=======\n"
+        "    return x + 999\n\ndef percent(part, whole):\n    return part / whole * 100\n"
+        ">>>>>>> REPLACE"
+    )
+    assert "return part / whole * 100" in apply_edits(BIG, near)
+    # A one-line near miss is never matched fuzzily: "+ 1O" would hit "+ 1".
+    one_line = "<<<<<<< SEARCH\n    return x + 1O\n=======\n    return x\n>>>>>>> REPLACE"
+    with pytest.raises(EditError, match="not found"):
+        apply_edits(BIG, one_line)
+    # Equally similar windows are ambiguous.
+    twins = "def a(x):\n    y = x\n    return y\n\ndef b(x):\n    y = x\n    return y\n"
+    blurry = "<<<<<<< SEARCH\ndef c(x):\n    y = x\n    return y\n=======\npass\n>>>>>>> REPLACE"
+    with pytest.raises(EditError):
+        apply_edits(twins, blurry)
