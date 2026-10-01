@@ -4,7 +4,7 @@
 **Roadmap authority:** [docs/PLAN.md](docs/PLAN.md) (9 phases). Ignore old phase numbers.
 
 **Current position:** Phases 1 ✅, 2 ✅ (walking skeleton, real PR), 3 ✅ (frontend),
-4 ✅ (real GitHub integration — code + tests; live issue→PR demo pending).
+4 ✅ (real GitHub integration — proven live: issue #2 → PR #3).
 **Next: Phase 5 — LangGraph agent.** SSE live run-streaming still deferred.
 
 > Update this at the end of every session. Fuller tracking: [docs/PROGRESS.md](docs/PROGRESS.md).
@@ -24,14 +24,15 @@
 - **Agent UI:** `/tasks` (list + create) and `/tasks/[id]` — Run the agent, see status badge + event timeline + proposed diff + sandbox result, and Approve→PR / Reject. Nav has Tasks/Projects; post-login → `/tasks`.
 - Deferred: SSE live run streaming (runs are synchronous); per-task run history list.
 
-## ✅ Phase 4 — Real GitHub integration (done in code)
+## ✅ Phase 4 — Real GitHub integration (done, proven live)
 - `app/integrations/github_api.py` (REST via httpx; token = `GITHUB_TOKEN` or fallback `gh auth token`; git gets it via `GIT_CONFIG_*` env, never URL/args).
 - `app/services/github.py`, `app/api/github.py`: `GET /github/repos`, `/github/repos/{o}/{n}/issues`, `/tree?ref=`; `POST /tasks/from-issue` (pins base branch → SHA, verifies target file at SHA, rejects closed issues/PRs).
 - PRs now via REST (`github_pr.py`), against the task's base branch, body `Fixes #N`. Approval stores `diff_sha256` + `base_commit`; runs store `base_commit`. Migration `deb3d64694ad` (head).
 - Hardening: safe `target_path` (no `..`/abs/.git, symlink-escape check at write), safe branch names, `git clone --`, issue text given to LLM as delimited untrusted context. Audit: `task.imported_from_issue`, `run.approved/rejected`.
 - UI: `components/ImportFromIssue.tsx` on `/tasks`; manual form behind a `<details>`.
 - Verified: 91 backend tests, ruff clean; web lint + tsc + 7 Vitest + build green; live read-only calls against GitHub OK (38 repos, tree@SHA, 404 mapping, PR-not-issue refusal).
-- Pending: live demo — `devpilot-demo` main is already fixed (PR #1 merged) and has no open issues; plant a new bug + issue to demo.
+- **Proof (2026-10-01):** planted `percent()` bug (`//` vs `/`) on `krish1809/devpilot-demo` @ `5eec58f`, opened issue #2 → `POST /tasks/from-issue` (task pinned to that SHA) → run 3 validated in sandbox (Groq one-line fix) → approve → https://github.com/krish1809/devpilot-demo/pull/3 ("Fixes #2", approval row stores diff sha256 `285019f4a722` + base commit). PR #3 left open for the user to merge.
+- Dev DB has a smoke user `smoke-phase4@example.com` (owns task 3 / run 3) from the live check.
 
 ## 🟡 Phase 9 — Deploy + polish (seed only)
 - GitHub Actions CI (`.github/workflows/ci.yml`) — backend ruff+migrations+pytest and frontend lint+vitest+build. CI workflow (`2d14c97`) is on origin. Deploy (Vercel/Render/Neon) + demo README not done.

@@ -17,7 +17,7 @@ Phase 9 has a CI seed only.
 | 1 | Finish backend foundation | ✅ Done | CRUD API, Ruff green, migrations, Docker Compose |
 | 2 | **Walking skeleton (agent loop)** | ✅ Done | Groq + Docker sandbox + real PR; 64 tests |
 | 3 | Frontend + light auth | ✅ Done | Auth + projects + agent UI (create task, run, view diff/events, approve→PR). SSE live-streaming deferred (runs are synchronous) |
-| 4 | Real GitHub integration | ✅ Done (code) | List repos/issues/tree, import issue → task pinned to (repo, branch, SHA), PR via REST with `Fixes #N`; 91 backend tests. Live end-to-end PR from an imported issue still to be demoed |
+| 4 | Real GitHub integration | ✅ Done | List repos/issues/tree, import issue → task pinned to (repo, branch, SHA), PR via REST with `Fixes #N`; 91 backend tests. Proven live: devpilot-demo issue #2 → PR #3 |
 | 5 | LangGraph agent | ⬜ Not started | Durable multi-step graph + HITL |
 | 6 | Repository RAG | ⬜ Not started | pgvector |
 | 7 | Evaluation on SWE-bench Lite | ⬜ Not started | The resume number |
@@ -45,8 +45,7 @@ Phase 9 has a CI seed only.
 - Tests: `apps/api/tests/test_github.py` (27, GitHub mocked with `httpx.MockTransport`); Vitest covers new client calls.
 
 ## Immediate next steps
-1. Demo Phase 4 live: plant a new bug + open an issue on `krish1809/devpilot-demo` (its `main` is already fixed and has no open issues), import it, run, approve.
-2. Begin **Phase 5 — LangGraph agent** (see PLAN.md).
+1. Begin **Phase 5 — LangGraph agent** (see PLAN.md).
 
 ## Limitations
 Single-file, single-LLM-call agent; synchronous runs; no RAG, evaluation, or
