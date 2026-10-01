@@ -63,6 +63,18 @@ app.include_router(
 )
 
 
+@app.get("/", tags=["system"])
+def root() -> dict[str, str]:
+    """A friendly landing response for anyone who opens the API URL directly."""
+    return {
+        "name": "DevPilot API",
+        "mode": "read-only showcase" if get_settings().demo_mode else "full",
+        "docs": "/docs",
+        "health": "/health",
+        "source": "https://github.com/krish1809/devpilot",
+    }
+
+
 @app.get("/api/v1/config", tags=["system"])
 def public_config() -> dict[str, bool]:
     """Public, non-secret flags the web app adapts to."""

@@ -32,3 +32,8 @@ def test_cors_disallows_unknown_origin(client: TestClient) -> None:
 
     # Middleware does not echo an allow-origin header for disallowed origins.
     assert response.headers.get("access-control-allow-origin") != "http://evil.example.com"
+
+
+def test_root_describes_the_api(client) -> None:  # noqa: ANN001
+    body = client.get("/").json()
+    assert body["name"] == "DevPilot API" and body["docs"] == "/docs"
