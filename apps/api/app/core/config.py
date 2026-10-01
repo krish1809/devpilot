@@ -54,6 +54,11 @@ class Settings(BaseSettings):
     agent_max_tokens: int = 100_000  # prompt + completion, per run
     agent_run_timeout_seconds: int = 900  # wall clock per execution
     agent_review_max_changed_lines: int = 300
+    # Prompt budgets (chars). Files above agent_whole_file_chars are shown as
+    # excerpts and edited with SEARCH/REPLACE blocks instead of rewritten whole.
+    agent_whole_file_chars: int = 12_000
+    agent_excerpt_chars: int = 8_000
+    agent_issue_chars: int = 6_000
 
     # Repository RAG (Phase 6). Local embeddings by default (no API key).
     rag_enabled: bool = True  # default for new runs; overridable per run
@@ -63,6 +68,8 @@ class Settings(BaseSettings):
     rag_max_chunks: int = 8000
     rag_context_chars: int = 12_000  # retrieved context budget per prompt
     rag_candidate_files: int = 8  # files offered to the planner for localization
+    rag_eager_embed_chunks: int = 3000  # larger repos embed lazily at query time
+    rag_lazy_embed_per_query: int = 150
 
     # Sandbox for running untrusted repository code.
     sandbox_image: str = "python:3.11-slim"

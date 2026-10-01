@@ -2,6 +2,7 @@ from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
+    Boolean,
     Computed,
     DateTime,
     ForeignKey,
@@ -31,6 +32,11 @@ class RepoIndex(Base):
     embedding_model: Mapped[str] = mapped_column(String(200), nullable=False)
     file_count: Mapped[int] = mapped_column(Integer, nullable=False)
     chunk_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    # False for large repos: chunks are embedded lazily, when keyword search
+    # first surfaces them (see app/rag/index.py).
+    fully_embedded: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -53,7 +59,7 @@ class RepoChunk(Base):
     start_line: Mapped[int] = mapped_column(Integer, nullable=False)
     end_line: Mapped[int] = mapped_column(Integer, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    embedding: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIM), nullable=False)
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM), nullable=True)
     tsv: Mapped[str] = mapped_column(
         TSVECTOR,
         Computed("to_tsvector('simple', path || ' ' || content)", persisted=True),

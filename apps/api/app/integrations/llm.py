@@ -23,6 +23,11 @@ _MAX_RATE_LIMIT_WAIT = 30.0
 _TRY_AGAIN_RE = re.compile(r"try again in ([0-9.]+)\s*(ms|s)", re.IGNORECASE)
 
 
+def _is_daily_quota(response: httpx.Response) -> bool:
+    text = response.text.lower()
+    return "per day" in text or "(tpd)" in text or "(rpd)" in text
+
+
 def _rate_limit_wait(response: httpx.Response, retry: int) -> float:
     """Seconds to wait before retrying a 429: Retry-After, else the provider's
     "try again in Xs" hint, else exponential backoff — always capped."""
@@ -110,6 +115,8 @@ class GroqProvider:
                     continue
                 raise LLMError(f"LLM request failed after {attempt} attempts: {exc}") from exc
 
+            if response.status_code == 429 and _is_daily_quota(response):
+                break  # a per-day quota won't recover by waiting seconds
             if response.status_code == 429 and rate_limited < _MAX_RATE_LIMIT_RETRIES:
                 time.sleep(_rate_limit_wait(response, rate_limited))
                 rate_limited += 1

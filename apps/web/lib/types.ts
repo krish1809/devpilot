@@ -188,3 +188,55 @@ export interface TaskFromIssueInput {
   test_command: string;
   target_path?: string | null;
 }
+
+// --- Benchmarks (Phase 7) ---
+export interface EvalConfigSummary {
+  config: string;
+  generated: number;
+  scored: number;
+  resolved: number;
+  resolve_rate: number | null;
+  ci95: [number, number] | null;
+  infra_failures: string[];
+  with_patch: number;
+  localized: number;
+  avg_tokens: number;
+  avg_llm_calls: number;
+  avg_seconds: number;
+}
+
+export interface EvalResult {
+  instance_id: string;
+  repo: string;
+  config: string;
+  agent_run_id: number | null;
+  status: string;
+  target_path: string | null;
+  gold_path: string | null;
+  localized: boolean | null;
+  resolved: boolean | null;
+  score_detail: Record<string, unknown> | null;
+  error: string | null;
+  llm_calls: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  seconds: number;
+  patch: string | null;
+}
+
+export interface EvalRunSummary {
+  id: number;
+  name: string;
+  dataset: string;
+  model: string;
+  instance_count: number;
+  configs: string[];
+  settings: Record<string, unknown>;
+  created_at: string;
+  summary: EvalConfigSummary[];
+}
+
+export interface EvalRunDetail extends EvalRunSummary {
+  instance_ids: string[];
+  results: EvalResult[];
+}

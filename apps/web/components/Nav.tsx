@@ -31,6 +31,11 @@ export function Nav() {
                 Tasks
               </Button>
             </Link>
+            <Link href="/evals">
+              <Button variant="ghost" size="sm">
+                Benchmarks
+              </Button>
+            </Link>
             <Link href="/projects">
               <Button variant="ghost" size="sm">
                 Projects

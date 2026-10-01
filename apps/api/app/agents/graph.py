@@ -39,17 +39,18 @@ from langgraph.types import interrupt
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.agents.edits import EditError, apply_edits, file_excerpt
 from app.core.config import Settings, get_settings
 from app.integrations import git_ops, github_api, github_pr
 from app.integrations.llm import LLMProvider, Message, get_llm_provider
 from app.models.agent_run import AgentRun, PullRequest, RunEvent, RunStatus
 from app.models.task import Task
 from app.rag import index as rag_index
-from app.rag.chunking import is_indexable_path, read_indexable_text
+from app.rag.chunking import is_doc_path, is_indexable_path, is_test_path, read_indexable_text
 from app.rag.embeddings import Embedder, get_embedder
 from app.sandbox.runner import SandboxResult, run_in_sandbox
 
-_MAX_FILE_CHARS = 60_000  # single-file agent: refuse files too large to send whole
+_MAX_FILE_CHARS = 400_000  # sanity cap; large files are shown as excerpts
 _MAX_FAILURE_CHARS = 6_000  # tail of test output given to the model
 _MAX_TREE_FILES = 400  # file list offered for localization when RAG is off
 
@@ -59,7 +60,7 @@ class AgentState(TypedDict, total=False):
     repo_url: str
     base_commit: str | None
     target_path: str | None  # None until localized when the task names no file
-    test_command: str
+    test_command: str | None  # None: propose a patch without running tests
     issue: str | None
     use_rag: bool
 
@@ -70,6 +71,8 @@ class AgentState(TypedDict, total=False):
     baseline_output: str
     plan: str
     candidate: str
+    last_reply: str  # the coder's raw reply (edit blocks in edit mode)
+    edit_error: str  # why the last edit could not be applied ("" if it was)
     diff: str
     test_passed: bool
     test_output: str
@@ -247,9 +250,19 @@ _PLANNER_SYSTEM = (
 )
 
 _CODER_SYSTEM = (
-    "You are an expert software engineer. You fix a failing test by editing "
+    "You are an expert software engineer. You fix the reported bug by editing "
     "exactly one file. Return ONLY the complete corrected contents of that "
     "file — no explanation, no commentary, and no markdown code fences. " + _UNTRUSTED_NOTE
+)
+
+_EDIT_CODER_SYSTEM = (
+    "You are an expert software engineer. You fix the reported bug by editing exactly "
+    "one file, which is large, so you are shown only the relevant excerpts. Reply ONLY "
+    "with one or more edit blocks in exactly this format:\n"
+    "<<<<<<< SEARCH\n<lines copied exactly from the file, including indentation>\n"
+    "=======\n<replacement lines>\n>>>>>>> REPLACE\n"
+    "Each SEARCH must match the file exactly once — include enough surrounding lines "
+    "to be unique. Keep edits minimal. Do not include the '### lines' labels. " + _UNTRUSTED_NOTE
 )
 
 
@@ -274,31 +287,50 @@ def _retrieved_part(state: AgentState) -> str:
     )
 
 
-def _context(state: AgentState) -> str:
+def _is_edit_mode(state: AgentState, settings: Settings) -> bool:
+    return len(state.get("original") or "") > settings.agent_whole_file_chars
+
+
+def _file_part(state: AgentState, settings: Settings) -> str:
+    original = state.get("original")
+    if original is None:
+        return ""
+    target = state["target_path"]
+    if not _is_edit_mode(state, settings):
+        return f"File `{target}`:\n<file>\n{original}\n</file>\n\n"
+    query = "\n".join(
+        x for x in (state.get("issue"), state.get("plan"), state.get("feedback")) if x
+    )
+    excerpt = file_excerpt(original, query, settings.agent_excerpt_chars)
+    return (
+        f"Excerpts of `{target}` ({len(original.splitlines())} lines; only the parts most "
+        f"related to the issue are shown):\n<file_excerpt>\n{excerpt}\n</file_excerpt>\n\n"
+    )
+
+
+def _context(state: AgentState, settings: Settings) -> str:
     issue = state.get("issue")
+    if issue and len(issue) > settings.agent_issue_chars:
+        issue = issue[: settings.agent_issue_chars] + "\n…[issue truncated]"
     issue_part = f"GitHub issue:\n<issue>\n{issue}\n</issue>\n\n" if issue else ""
-    file_part = (
-        f"File `{state['target_path']}`:\n<file>\n{state['original']}\n</file>\n\n"
-        if state.get("original") is not None
+    test_part = (
+        f"Running `{state['test_command']}` fails with:\n"
+        f"<test_output>\n{_tail(state.get('baseline_output', ''))}\n</test_output>\n"
+        if state.get("test_command")
         else ""
     )
-    return (
-        issue_part
-        + _retrieved_part(state)
-        + file_part
-        + f"Running `{state['test_command']}` fails with:\n"
-        + f"<test_output>\n{_tail(state.get('baseline_output', ''))}\n</test_output>\n"
-    )
+    return issue_part + _retrieved_part(state) + _file_part(state, settings) + test_part
 
 
-def planner_messages(state: AgentState) -> list[Message]:
+def planner_messages(state: AgentState, settings: Settings | None = None) -> list[Message]:
+    settings = settings or get_settings()
     if state.get("target_path"):
-        return [Message("system", _PLANNER_SYSTEM), Message("user", _context(state))]
+        return [Message("system", _PLANNER_SYSTEM), Message("user", _context(state, settings))]
     candidates = "\n".join(f"- {p}" for p in state.get("candidates") or [])
     heading = (
         "Candidate files (most relevant first)" if state.get("use_rag") else "Repository files"
     )
-    user = f"{heading}:\n{candidates}\n\n" + _context(state)
+    user = f"{heading}:\n{candidates}\n\n" + _context(state, settings)
     return [Message("system", _LOCALIZER_SYSTEM), Message("user", user)]
 
 
@@ -317,17 +349,25 @@ def parse_localized_plan(reply: str) -> tuple[str | None, str]:
     return target, plan.strip()
 
 
-def coder_messages(state: AgentState) -> list[Message]:
-    user = _context(state) + f"\nPlan:\n{state.get('plan', '(none)')}\n"
+def coder_messages(state: AgentState, settings: Settings | None = None) -> list[Message]:
+    settings = settings or get_settings()
+    edit_mode = _is_edit_mode(state, settings)
+    user = _context(state, settings) + f"\nPlan:\n{state.get('plan', '(none)')}\n"
     if state.get("feedback"):
+        previous = state.get("last_reply", "") if edit_mode else state.get("candidate", "")
+        problem = "It could not be applied:" if state.get("edit_error") else "It still fails with:"
         user += (
-            f"\nYour previous attempt:\n<previous_attempt>\n{state.get('candidate', '')}\n"
-            f"</previous_attempt>\nIt still fails with:\n"
-            f"<test_output>\n{_tail(state['feedback'])}\n</test_output>\n"
+            f"\nYour previous attempt:\n<previous_attempt>\n{_tail(previous, 4000)}\n"
+            f"</previous_attempt>\n{problem}\n"
+            f"<test_output>\n{_tail(state['feedback'], 2000)}\n</test_output>\n"
         )
+    goal = "so the test passes" if state.get("test_command") else "to resolve the issue"
+    if edit_mode:
+        user += f"\nReply with SEARCH/REPLACE blocks for `{state['target_path']}` {goal}."
+        return [Message("system", _EDIT_CODER_SYSTEM), Message("user", user)]
     user += (
-        f"\nReturn the complete corrected contents of `{state['target_path']}` so the test "
-        "passes. Output only the file contents."
+        f"\nReturn the complete corrected contents of `{state['target_path']}` {goal}. "
+        "Output only the file contents."
     )
     return [Message("system", _CODER_SYSTEM), Message("user", user)]
 
@@ -359,6 +399,10 @@ def _prepare(deps: AgentDeps, deadline: float | None, state: AgentState) -> dict
     sha = git_ops.head_commit(ws)
     original = _read_target(ws, state["target_path"]) if state.get("target_path") else None
     _update_run(deps, run_id, base_commit=sha)
+
+    if not state.get("test_command"):
+        _event(deps, run_id, "prepare", "No test command: the agent will propose an untested patch")
+        return {"base_commit": sha, "original": original, "baseline_output": ""}
 
     _event(deps, run_id, "prepare", f"Running baseline test: {state['test_command']}")
     baseline = _sandbox(deps, ws, state["test_command"])
@@ -425,6 +469,7 @@ def _retrieve(deps: AgentDeps, deadline: float | None, state: AgentState) -> dic
         workspace=ws,
         max_files=s.rag_max_files,
         max_chunks=s.rag_max_chunks,
+        eager_limit=s.rag_eager_embed_chunks,
     )
     _event(
         deps,
@@ -432,15 +477,20 @@ def _retrieve(deps: AgentDeps, deadline: float | None, state: AgentState) -> dic
         "retrieve",
         (f"Indexed {index.file_count} files into {index.chunk_count} chunks in "
          f"{time.monotonic() - started:.1f}s" if built
-         else f"Reusing index ({index.file_count} files, {index.chunk_count} chunks)"),
+         else f"Reusing index ({index.file_count} files, {index.chunk_count} chunks)")
+        + ("" if index.fully_embedded else "; large repo: embedding lazily per query"),
     )  # fmt: skip
 
     boost = rag_index.traceback_paths(state.get("baseline_output", ""))
     with deps.session_factory() as db:
         hits = rag_index.retrieve(
-            db, embedder, index.id, _retrieval_query(state), boost_paths=boost
-        )
-    candidates = rag_index.rank_files(hits, limit=s.rag_candidate_files)
+            db, embedder, index.id, _retrieval_query(state), boost_paths=boost,
+            lazy_embed=s.rag_lazy_embed_per_query,
+        )  # fmt: skip
+    # Source files first: bugs live in code far more often than in docs or tests.
+    ranked = rag_index.rank_files(hits, limit=max(s.rag_candidate_files * 3, 24))
+    candidates = sorted(ranked, key=lambda p: is_doc_path(p) or is_test_path(p))
+    candidates = candidates[: s.rag_candidate_files]
     target = state.get("target_path")
     context = rag_index.select_context(
         hits, budget_chars=s.rag_context_chars, exclude={target} if target else set()
@@ -450,7 +500,8 @@ def _retrieve(deps: AgentDeps, deadline: float | None, state: AgentState) -> dic
         run_id,
         retrieval={
             "index": {"id": index.id, "files": index.file_count, "chunks": index.chunk_count,
-                      "built_now": built, "model": index.embedding_model},
+                      "built_now": built, "model": index.embedding_model,
+                      "fully_embedded": index.fully_embedded},
             "boosted_paths": sorted(boost),
             "candidates": candidates,
             "context": [h.as_dict() for h in context],
@@ -487,7 +538,7 @@ def _plan(deps: AgentDeps, deadline: float | None, state: AgentState) -> dict:
     _guard(deps, run_id, deadline)
     if state.get("target_path"):
         _event(deps, run_id, "plan", "Planning the fix")
-        reply, usage = _call_llm(deps, state, planner_messages(state))
+        reply, usage = _call_llm(deps, state, planner_messages(state, deps.settings))
         plan = reply.strip()[:4000]
         _update_run(deps, run_id, plan=plan)
         _event(deps, run_id, "plan", f"Plan ready ({len(plan.splitlines())} lines)")
@@ -497,7 +548,7 @@ def _plan(deps: AgentDeps, deadline: float | None, state: AgentState) -> dict:
     if not candidates:
         raise RunAborted("No target file given and retrieval found no candidate files.")
     _event(deps, run_id, "plan", "Choosing the file to change and planning the fix")
-    reply, usage = _call_llm(deps, state, planner_messages(state))
+    reply, usage = _call_llm(deps, state, planner_messages(state, deps.settings))
     chosen, plan = parse_localized_plan(reply)
     ws = _checkout(deps, state)
     if _is_allowed_target(ws, chosen):
@@ -525,11 +576,28 @@ def _code(deps: AgentDeps, deadline: float | None, state: AgentState) -> dict:
         run_id,
         "code",
         f"Attempt {attempt}/{max_attempts}: "
-        + ("repairing after a failed test" if state.get("feedback") else "writing the patch"),
+        + (
+            "retrying after an edit that could not be applied"
+            if state.get("edit_error")
+            else "repairing after a failed test"
+            if state.get("feedback")
+            else "writing the patch"
+        ),
     )
-    reply, usage = _call_llm(deps, state, coder_messages(state))
+    reply, usage = _call_llm(deps, state, coder_messages(state, deps.settings))
     _update_run(deps, run_id, attempts=attempt)
-    return {"candidate": extract_file_contents(reply), "attempts": attempt, **usage}
+    if not _is_edit_mode(state, deps.settings):
+        candidate = extract_file_contents(reply)
+        return {"candidate": candidate, "last_reply": reply, "edit_error": "",
+                "attempts": attempt, **usage}  # fmt: skip
+    try:
+        candidate = apply_edits(state["original"], reply)
+    except EditError as exc:
+        _event(deps, run_id, "code", f"Edit could not be applied: {exc}")
+        return {"edit_error": str(exc), "feedback": str(exc), "last_reply": reply,
+                "attempts": attempt, **usage}  # fmt: skip
+    return {"candidate": candidate, "last_reply": reply, "edit_error": "",
+            "attempts": attempt, **usage}  # fmt: skip
 
 
 def _test(deps: AgentDeps, deadline: float | None, state: AgentState) -> dict:
@@ -538,6 +606,12 @@ def _test(deps: AgentDeps, deadline: float | None, state: AgentState) -> dict:
     ws = _checkout(deps, state)
     git_ops.reset_worktree(ws)
     git_ops.write_text(ws, state["target_path"], state["candidate"])
+
+    if not state.get("test_command"):
+        diff = git_ops.git_diff(ws)
+        _update_run(deps, run_id, diff=diff, test_passed=None, sandbox_output=None)
+        _event(deps, run_id, "test", "No test command; patch not tested")
+        return {"diff": diff, "test_passed": None, "test_output": "", "feedback": ""}
 
     _event(deps, run_id, "test", f"Running `{state['test_command']}` in the sandbox")
     result = _sandbox(deps, ws, state["test_command"])
@@ -664,12 +738,18 @@ def _publish(deps: AgentDeps, state: AgentState) -> dict:
 
 
 def _fail(deps: AgentDeps, state: AgentState) -> dict:
+    attempts = state.get("attempts", 0)
+    if state.get("edit_error"):
+        msg = f"No applicable edit after {attempts} attempt(s): {state['edit_error']}"
+        _update_run(deps, state["run_id"], status=RunStatus.ERROR, error=msg[:2000])
+        _event(deps, state["run_id"], "code", msg)
+        return {}
     _update_run(deps, state["run_id"], status=RunStatus.TEST_FAILED)
     _event(
         deps,
         state["run_id"],
         "test",
-        f"Test still failing after {state.get('attempts', 0)} attempt(s); giving up",
+        f"Test still failing after {attempts} attempt(s); giving up",
     )
     return {}
 
@@ -677,8 +757,14 @@ def _fail(deps: AgentDeps, state: AgentState) -> dict:
 # --------------------------------------------------------------------------- #
 # Routing + assembly
 # --------------------------------------------------------------------------- #
+def _after_code(deps: AgentDeps, state: AgentState) -> str:
+    if not state.get("edit_error"):
+        return "test"
+    return "code" if state.get("attempts", 0) < deps.settings.agent_max_attempts else "fail"
+
+
 def _after_test(deps: AgentDeps, state: AgentState) -> str:
-    if state.get("test_passed"):
+    if state.get("test_passed") or state.get("test_passed") is None:  # passed, or untested
         return "review"
     if state.get("attempts", 0) < deps.settings.agent_max_attempts:
         return "code"
@@ -707,7 +793,7 @@ def build_graph(deps: AgentDeps, *, deadline: float | None = None):
     g.add_edge("prepare", "retrieve")
     g.add_edge("retrieve", "plan")
     g.add_edge("plan", "code")
-    g.add_edge("code", "test")
+    g.add_conditional_edges("code", lambda s: _after_code(deps, s), ["test", "code", "fail"])
     g.add_conditional_edges("test", lambda s: _after_test(deps, s), ["review", "code", "fail"])
     g.add_conditional_edges("review", _after_review, ["human_approval", END])
     g.add_edge("human_approval", "publish")

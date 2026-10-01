@@ -1,6 +1,8 @@
 import type {
   AgentRun,
   AuditLog,
+  EvalRunDetail,
+  EvalRunSummary,
   GitHubIssue,
   GitHubRepo,
   GitHubTree,
@@ -171,6 +173,11 @@ export const api = {
       method: "POST",
       body: baseBranch ? { decision, base_branch: baseBranch } : { decision },
     }),
+
+  // --- Benchmarks ---
+  listEvals: () => request<EvalRunSummary[]>("/api/v1/evals"),
+
+  getEval: (id: number) => request<EvalRunDetail>(`/api/v1/evals/${id}`),
 
   // --- GitHub ---
   listRepos: () => request<GitHubRepo[]>("/api/v1/github/repos"),

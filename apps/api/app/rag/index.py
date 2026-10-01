@@ -4,6 +4,13 @@ Retrieval is hybrid: exact cosine search over the index's vectors plus
 Postgres full-text search over identifiers, fused with Reciprocal Rank Fusion.
 Files named in the failing test's traceback get a boost, since they are the
 strongest localization signal available.
+
+Small repositories are embedded eagerly. Large ones (more chunks than
+``eager_limit``) store text + tsvector for every chunk but embed lazily: each
+query embeds the top keyword candidates that have no vector yet and persists
+them, so vector search acts as a re-ranker over a set that grows with use.
+CPU embedding runs at ~10–15 chunks/s here, so eagerly embedding a 12k-chunk
+repo would take ~15 minutes.
 """
 
 from __future__ import annotations
@@ -13,7 +20,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from sqlalchemy import select, text
+from sqlalchemy import select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -25,14 +32,23 @@ _RRF_K = 60
 _CANDIDATES_PER_LIST = 40
 _TRACEBACK_BOOST = 2.0 / (_RRF_K + 1)  # = ranking first in both lists
 
+# OR-query over the query's distinctive words: words that appear in more than
+# :max_df chunks of this index (``self``, ``return``, the project name…) are
+# dropped, a cheap stand-in for IDF weighting.
 _KEYWORD_SQL = text(
     """
-    WITH q AS (
-        SELECT to_tsquery('simple', string_agg(quote_literal(lexeme), ' | ')) AS query
-        FROM (
-            SELECT DISTINCT unnest(tsvector_to_array(to_tsvector('simple', :query))) AS lexeme
-        ) words
-        WHERE length(lexeme) >= 3
+    WITH words AS (
+        SELECT DISTINCT unnest(tsvector_to_array(to_tsvector('simple', :query))) AS lexeme
+    ),
+    stats AS (
+        SELECT word, ndoc
+        FROM ts_stat('SELECT tsv FROM repo_chunks WHERE index_id = '
+                     || CAST(CAST(:index_id AS integer) AS text))
+    ),
+    q AS (
+        SELECT to_tsquery('simple', string_agg(quote_literal(w.lexeme), ' | ')) AS query
+        FROM words w JOIN stats s ON s.word = w.lexeme
+        WHERE length(w.lexeme) >= 3 AND s.ndoc <= :max_df
     )
     SELECT c.id
     FROM repo_chunks c, q
@@ -74,9 +90,11 @@ def ensure_index(
     workspace: Path,
     max_files: int,
     max_chunks: int,
+    eager_limit: int = 3000,
 ) -> tuple[RepoIndex, bool]:
     """Return (index, built_now). Builds atomically; concurrent builders of the
-    same (repo, commit, model) converge on one row via the unique constraint."""
+    same (repo, commit, model) converge on one row via the unique constraint.
+    Repos with more than ``eager_limit`` chunks are embedded lazily."""
     key = (RepoIndex.repo_url == repo_url, RepoIndex.commit_sha == commit_sha,
            RepoIndex.embedding_model == embedder.model)  # fmt: skip
     with session_factory() as db:
@@ -86,7 +104,12 @@ def ensure_index(
             return existing, False
 
     chunks, file_count = collect_chunks(workspace, max_files=max_files, max_chunks=max_chunks)
-    vectors = embedder.embed_documents([f"{c.path}\n{c.content}" for c in chunks]) if chunks else []
+    eager = len(chunks) <= eager_limit
+    vectors = (
+        embedder.embed_documents([_embed_text(c.path, c.content) for c in chunks])
+        if chunks and eager
+        else [None] * len(chunks)
+    )
 
     with session_factory() as db:
         index = RepoIndex(
@@ -95,6 +118,7 @@ def ensure_index(
             embedding_model=embedder.model,
             file_count=file_count,
             chunk_count=len(chunks),
+            fully_embedded=eager,
         )
         db.add(index)
         try:
@@ -121,6 +145,26 @@ def ensure_index(
         return index, True
 
 
+def _embed_text(path: str, content: str) -> str:
+    return f"{path}\n{content}"
+
+
+def _embed_missing(db: Session, embedder: Embedder, chunk_ids: list[int]) -> int:
+    """Embed and persist vectors for any of ``chunk_ids`` that lack one."""
+    rows = db.execute(
+        select(RepoChunk.id, RepoChunk.path, RepoChunk.content).where(
+            RepoChunk.id.in_(chunk_ids), RepoChunk.embedding.is_(None)
+        )
+    ).all()
+    if not rows:
+        return 0
+    vectors = embedder.embed_documents([_embed_text(p, c) for _, p, c in rows])
+    for (chunk_id, _, _), vec in zip(rows, vectors, strict=True):
+        db.execute(update(RepoChunk).where(RepoChunk.id == chunk_id).values(embedding=vec))
+    db.commit()
+    return len(rows)
+
+
 def traceback_paths(output: str) -> set[str]:
     paths: set[str] = set()
     for pattern in _TRACEBACK_PATHS:
@@ -136,17 +180,26 @@ def retrieve(
     *,
     boost_paths: set[str] = frozenset(),
     limit: int = _CANDIDATES_PER_LIST,
+    lazy_embed: int = 150,
 ) -> list[Hit]:
     """Fused, ranked chunks for ``query`` within one index (best first)."""
+    index = db.get(RepoIndex, index_id)
+    max_df = max(25, int(0.05 * (index.chunk_count if index else 0)))
+    pool = _CANDIDATES_PER_LIST if index is None or index.fully_embedded else lazy_embed
+    keyword_ids = db.scalars(
+        _KEYWORD_SQL,
+        {"query": query, "index_id": index_id, "limit": pool, "max_df": max_df},
+    ).all()
+    if index is not None and not index.fully_embedded:
+        _embed_missing(db, embedder, list(keyword_ids))
+    keyword_ids = keyword_ids[:_CANDIDATES_PER_LIST]
+
     qvec = embedder.embed_query(query)
     vector_ids = db.scalars(
         select(RepoChunk.id)
-        .where(RepoChunk.index_id == index_id)
+        .where(RepoChunk.index_id == index_id, RepoChunk.embedding.is_not(None))
         .order_by(RepoChunk.embedding.cosine_distance(qvec), RepoChunk.id)
         .limit(_CANDIDATES_PER_LIST)
-    ).all()
-    keyword_ids = db.scalars(
-        _KEYWORD_SQL, {"query": query, "index_id": index_id, "limit": _CANDIDATES_PER_LIST}
     ).all()
 
     scores: dict[int, float] = {}

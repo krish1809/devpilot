@@ -30,13 +30,15 @@ class TaskCreate(BaseModel):
     repo_url: str = Field(min_length=1, max_length=500)
     base_commit: str | None = Field(default=None, max_length=64)
     base_branch: str | None = Field(default=None, max_length=200)
-    test_command: str = Field(min_length=1, max_length=500)
-    # Optional: leave empty to let the agent localize the file (needs RAG).
+    # Optional: without a test command the patch is proposed untested.
+    test_command: str | None = Field(default=None, max_length=500)
+    # Optional: leave empty to let the agent localize the file.
     target_path: str | None = Field(default=None, max_length=500)
     description: str | None = None
 
     _target = field_validator("target_path")(_check_target_path)
     _branch = field_validator("base_branch")(_check_branch)
+    _test = field_validator("test_command")(lambda v: (v or "").strip() or None)
 
     @field_validator("repo_url")
     @classmethod
@@ -53,7 +55,7 @@ class TaskFromIssueCreate(BaseModel):
     repo_full_name: str = Field(min_length=3, max_length=200, pattern=r"^[\w.-]+/[\w.-]+$")
     issue_number: int = Field(gt=0)
     base_branch: str | None = Field(default=None, max_length=200)
-    test_command: str = Field(min_length=1, max_length=500)
+    test_command: str | None = Field(default=None, max_length=500)
     target_path: str | None = Field(default=None, max_length=500)
 
     _target = field_validator("target_path")(_check_target_path)
@@ -72,7 +74,7 @@ class TaskResponse(BaseModel):
     issue_number: int | None
     issue_title: str | None
     issue_url: str | None
-    test_command: str
+    test_command: str | None
     target_path: str | None
     description: str | None
     created_at: datetime

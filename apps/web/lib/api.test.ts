@@ -105,3 +105,15 @@ describe("run options", () => {
     expect(JSON.parse(calls[1][1].body as string)).toEqual({ use_rag: false });
   });
 });
+
+describe("benchmarks client", () => {
+  it("fetches eval runs and one run", async () => {
+    const fetchMock = mockFetch(200, []);
+    globalThis.fetch = fetchMock;
+    await api.listEvals();
+    await api.getEval(2);
+    const calls = fetchMock.mock.calls as unknown as [string, RequestInit][];
+    expect(calls[0][0]).toMatch(/\/api\/v1\/evals$/);
+    expect(calls[1][0]).toMatch(/\/api\/v1\/evals\/2$/);
+  });
+});

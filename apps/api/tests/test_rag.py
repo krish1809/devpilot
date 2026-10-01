@@ -346,3 +346,38 @@ def test_run_endpoint_accepts_use_rag(
     run = client.get(f"/api/v1/runs/{started.json()['id']}", headers=auth_headers).json()
     assert run["use_rag"] is True and run["target_path"] == "calculator.py"
     assert run["retrieval"]["candidates"]
+
+
+def test_source_files_are_indexed_before_tests(tmp_path: Path) -> None:
+    repo = _git_repo(tmp_path, SHOP)
+    chunks, _ = chunking.collect_chunks(repo, max_files=100, max_chunks=2)
+    assert all(not chunking.is_test_path(c.path) for c in chunks)
+
+
+def test_large_repos_embed_lazily_on_query(
+    tmp_path: Path, db_session: Session, agent_deps: AgentDeps
+) -> None:
+    repo = _git_repo(tmp_path, SHOP)
+    index, _ = rag_index.ensure_index(
+        agent_deps.session_factory, HashEmbedder(), repo_url=str(repo),
+        commit_sha=git_ops.head_commit(repo), workspace=repo,
+        max_files=100, max_chunks=100, eager_limit=1,
+    )  # fmt: skip
+    assert index.fully_embedded is False
+    q = db_session.query(RepoChunk).filter(RepoChunk.index_id == index.id)
+    assert q.filter(RepoChunk.embedding.is_not(None)).count() == 0
+
+    hits = rag_index.retrieve(db_session, HashEmbedder(), index.id, "apply_discount")
+    assert hits and hits[0].path == "shop/cart.py"
+    embedded = q.filter(RepoChunk.embedding.is_not(None)).count()
+    assert 0 < embedded < index.chunk_count  # only keyword candidates got vectors
+
+
+def test_common_words_are_ignored_by_keyword_search(
+    tmp_path: Path, db_session: Session, agent_deps: AgentDeps
+) -> None:
+    files = {f"pkg/mod{i}.py": f"def thing{i}():\n    return 'widget'\n" for i in range(40)}
+    files["pkg/special.py"] = "def frobnicate():\n    return 'widget'\n"
+    index, _ = _build(tmp_path, agent_deps, files=files)
+    hits = rag_index.retrieve(db_session, HashEmbedder(), index.id, "widget frobnicate")
+    assert hits[0].path == "pkg/special.py"

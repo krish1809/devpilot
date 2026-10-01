@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import ast
 import re
+import warnings
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
@@ -128,7 +129,9 @@ def _windows(lines: list[str], start: int, end: int) -> list[tuple[int, int]]:
 def _python_spans(text: str, n_lines: int) -> list[tuple[int, int]] | None:
     """Spans split at top-level def/class boundaries (None if unparsable)."""
     try:
-        tree = ast.parse(text)
+        with warnings.catch_warnings():  # old code: invalid escape sequences etc.
+            warnings.simplefilter("ignore")
+            tree = ast.parse(text)
     except (SyntaxError, ValueError):
         return None
     starts = sorted(
@@ -167,11 +170,36 @@ def chunk_file(relpath: str, text: str) -> list[Chunk]:
     return out
 
 
+_TEST_DIRS = {"tests", "test", "testing", "testcases"}
+
+
+_DOC_SUFFIXES = {".md", ".rst", ".txt"}
+
+
+def is_doc_path(relpath: str) -> bool:
+    p = PurePosixPath(relpath)
+    return p.suffix.lower() in _DOC_SUFFIXES or "docs" in p.parts[:-1] or p.stem in _TEXT_NAMES
+
+
+def is_test_path(relpath: str) -> bool:
+    p = PurePosixPath(relpath)
+    name = p.name
+    return (
+        any(part in _TEST_DIRS for part in p.parts[:-1])
+        or name.startswith("test_")
+        or name.endswith(("_test.py", "_tests.py"))
+        or name == "conftest.py"
+    )
+
+
 def collect_chunks(workspace: Path, *, max_files: int, max_chunks: int) -> tuple[list[Chunk], int]:
-    """Chunks for every indexable tracked file. Returns (chunks, files_indexed)."""
+    """Chunks for every indexable tracked file. Returns (chunks, files_indexed).
+
+    Source files are indexed before tests, so when a large repository hits the
+    caps it is the (usually huge) test suite that gets cut, not the code."""
     chunks: list[Chunk] = []
     files = 0
-    for relpath in tracked_files(workspace):
+    for relpath in sorted(tracked_files(workspace), key=lambda f: (is_test_path(f), f)):
         if files >= max_files or len(chunks) >= max_chunks:
             break
         if not is_indexable_path(relpath):

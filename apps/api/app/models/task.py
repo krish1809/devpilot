@@ -31,8 +31,10 @@ class Task(Base):
     issue_title: Mapped[str | None] = mapped_column(String(500), nullable=True)
     issue_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
-    # The command that runs the failing test inside the sandbox.
-    test_command: Mapped[str] = mapped_column(String(500), nullable=False)
+    # The command that runs the failing test inside the sandbox. Optional since
+    # Phase 7: without it the agent proposes an untested patch for human review
+    # (the standard SWE-bench setting, where the tests are hidden).
+    test_command: Mapped[str | None] = mapped_column(String(500), nullable=True)
     # The file the agent may edit. Optional since Phase 6: when empty, the
     # planner localizes it from retrieved repository context.
     target_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
