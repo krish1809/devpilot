@@ -5,6 +5,9 @@ without a human's approval.**
 
 [![CI](https://github.com/krish1809/devpilot/actions/workflows/ci.yml/badge.svg)](https://github.com/krish1809/devpilot/actions/workflows/ci.yml)
 
+**[▶ Live demo](https://devpilot-pied.vercel.app)** — a read-only showcase of real runs (click
+*View the demo*, no account needed; the free API server may take ~1 min to wake up).
+
 Point DevPilot at an issue. It indexes the repository, finds the file that's actually broken,
 plans a fix, edits the code, runs the project's tests in a locked-down Docker sandbox, and shows
 you the diff, the plan and a full trace. Only when you click **Approve** does it push a branch and

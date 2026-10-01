@@ -7,8 +7,10 @@
 4 ✅ (real GitHub integration — issue #2 → PR #3, merged), 5 ✅ (LangGraph agent),
 6 ✅ (repository RAG + file localization), 7 🟡 (harness done; v2 benchmark running
 unattended over ~3 days of LLM quota), 8 ✅ in code (MCP server, tracing, injection defenses).
-9 🟡 (showcase mode + deploy configs + README done and rehearsed; **waiting on the user's
-Neon/Render/Vercel accounts** — steps in docs/DEPLOY.md). SSE streaming still deferred.
+9 ✅ deployed 2026-10-02: **https://devpilot-pied.vercel.app** (Vercel, `apps/web`) →
+API **https://devpilot-api-gr7a.onrender.com** (Render free, DEMO_MODE) → Neon Postgres. Showcase data
+imported; live flow verified in headless Chrome. Remaining: v2 benchmark finishing → re-export +
+re-import showcase, refresh README numbers/screenshots. SSE streaming still deferred.
 
 > Update this at the end of every session. Fuller tracking: [docs/PROGRESS.md](docs/PROGRESS.md).
 
@@ -70,7 +72,9 @@ Neon/Render/Vercel accounts** — steps in docs/DEPLOY.md). SSE streaming still 
 - Injection: `tests/test_injection.py` (secrets never in prompts, injected text confined to untrusted tags, protected CI/secret paths, sandbox has no network); `agents/risk.py` review warnings above Approve; syntax gate in `_code`.
 - Tests: 183 backend, 17 web. Migration head `b04f052d3d3e`.
 
-## 🟡 Phase 9 — Deploy + polish (ready to deploy)
+## ✅ Phase 9 — Deploy + polish (live)
+- ⚠️ The Neon connection string (with password) was pasted in chat on 2026-10-02; the user said they'd reset the `neondb_owner` password and update Render's `DATABASE_URL`. Never write that string into files/commits. Re-imports: `read -rs DATABASE_URL && export DATABASE_URL` then `python -m scripts.showcase import ../../deploy/showcase.json`.
+- Render env: DEMO_MODE=true, SECRET_KEY (generated), DATABASE_URL (Neon, pooler), CORS_ORIGINS=https://devpilot-pied.vercel.app. Vercel env: NEXT_PUBLIC_API_URL=https://devpilot-api-gr7a.onrender.com. Both auto-deploy from `main`.
 - Showcase mode `DEMO_MODE=true` (`app/core/demo.py`): middleware refuses all writes except login + `/auth/demo`, blocks `/api/v1/github/*`; `POST /auth/demo` → read-only demo user; `GET /api/v1/config` → `{demo_mode}`. Web adapts (demo button on login, banner, hides run/approve/import controls).
 - `scripts/showcase.py export|import` → `deploy/showcase.json` (tasks 3, 4, 51 + both SWE-bench runs; scrubbed paths/org ids; idempotent import under demo user). **Re-export after the v2 benchmark finishes**, commit, re-import into Neon.
 - Deploy: `render.yaml` (API, Docker, free), Dockerfile runs `alembic upgrade head` then uvicorn on `$PORT`; DB URLs `postgres://`/`postgresql://` auto-normalized; Vercel root `apps/web` with `NEXT_PUBLIC_API_URL`; Neon for Postgres+pgvector. Guide: `docs/DEPLOY.md`.
