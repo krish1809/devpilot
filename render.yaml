@@ -8,6 +8,9 @@ services:
     dockerfilePath: ./apps/api/Dockerfile
     dockerContext: ./apps/api
     healthCheckPath: /health
+    buildFilter:                # redeploy only when the API changes (not on docs/web pushes)
+      paths:
+        - apps/api/**
     envVars:
       - key: DEMO_MODE          # read-only showcase: no agent runs, no GitHub calls
         value: "true"
