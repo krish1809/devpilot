@@ -5,8 +5,8 @@
 
 **Current position:** Phases 1 ✅, 2 ✅ (walking skeleton, real PR), 3 ✅ (frontend),
 4 ✅ (real GitHub integration — issue #2 → PR #3, merged), 5 ✅ (LangGraph agent),
-6 ✅ (repository RAG + file localization). **Next: Phase 7 — SWE-bench Lite.**
-SSE streaming still deferred (UI polls).
+6 ✅ (repository RAG + file localization), 7 🟡 (SWE-bench Lite harness built;
+benchmark run `lite-s20-seed7` in progress — see Phase 7 below). SSE streaming still deferred.
 
 > Update this at the end of every session. Fuller tracking: [docs/PROGRESS.md](docs/PROGRESS.md).
 
@@ -16,7 +16,7 @@ SSE streaming still deferred (UI polls).
 - FastAPI + PostgreSQL + Alembic; Project CRUD (`apps/api/app/...`), `/health`
 - Dedicated `devpilot_test` DB, pytest fixtures, **44 tests passing**; Ruff lint + format clean
 - Docker Compose (Postgres + `migrate` + `api`), Dockerfile, Makefile
-- Migrations chain verified drift-free (`alembic check` clean; current head `cb5554ccaecd`, Phase 6)
+- Migrations chain verified drift-free (`alembic check` clean; current head `bcc6ef434d5e`, Phase 7)
 - CORS middleware (so the web app can call the API)
 
 ## ✅ Phase 3 — Frontend + light auth (done)
@@ -51,6 +51,14 @@ SSE streaming still deferred (UI polls).
 - Graph: `retrieve` node; `target_path` optional → planner localizes (`TARGET:` line), server validates (tracked + indexable) else falls back. Per-run `use_rag`; RAG off + no target = file-list baseline.
 - LLM client retries 429 per Retry-After (cap 30s × 6). Groq free tier = 8k TPM — evals must be paced.
 - Migration head `cb5554ccaecd`. Tests 137. Eval: `python -m scripts.rag_eval --owner smoke-phase4@example.com` → `docs/eval/phase6-rag.md` (root-cause localization RAG 5/5 vs no-RAG 2/5; both resolve 5/5).
+
+## 🟡 Phase 7 — SWE-bench Lite (harness done; results pending)
+- Harness: `app/evals/swebench.py`, CLI `python -m scripts.swebench_eval {generate,score,report}` (see `docs/eval/README.md`). Scoring uses the **official** `swebench` harness installed in `apps/api/.venv-swebench` (gitignored; `pip install swebench`). Results in `eval_runs`/`eval_results`, API `/api/v1/evals`, web `/evals`.
+- Configs: `rag` (headline, issue only), `oracle-file`, `oracle-file+rag`, optional `gold` calibration. Agent never sees tests (no test command).
+- Agent changes for real repos: excerpts + SEARCH/REPLACE edits for files > 12k chars (diff-hunk fallback; fuzzy only ≥3 lines & unique), prompt budgets, optional test command, lazy embeddings for repos > 3k chunks, IDF keyword filter, source-first candidates, daily-quota 429 stops immediately.
+- Constraints: Groq free tier = 8k TPM / 1k RPD (only gpt-oss-120b/20b + qwen available); CPU embeddings ~12 chunks/s; disk ~9 GB free → scorer deletes each instance image (~3.8 GB). `requests` tests hit live network → harness may flag `network_unreachable` infra failures.
+- In progress (2026-10-01): `generate --name lite-s20-seed7 --n 20 --seed 7` (60 runs). Then `score --name lite-s20-seed7 --with-gold`, then `report` → `docs/eval/phase7-lite-s20-seed7.md`. Both steps are resumable; re-run the same command to continue.
+- ⚠️ Kill the generator with `pkill -f "[p]ython -u -m scripts.swebench_eval"` — an unbracketed pattern also kills your own shell.
 
 ## 🟡 Phase 9 — Deploy + polish (seed only)
 - GitHub Actions CI (`.github/workflows/ci.yml`) — backend ruff+migrations+pytest and frontend lint+vitest+build. CI workflow (`2d14c97`) is on origin. Deploy (Vercel/Render/Neon) + demo README not done.

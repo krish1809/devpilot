@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "devpilot-api"
 version = "0.1.0"
@@ -22,6 +26,11 @@ dev = [
     "pytest>=8.0,<9.0",
     "ruff>=0.8,<1.0",
 ]
+
+# Only the application package ships; alembic/, scripts/ and tests/ are run
+# from the source tree. (Without this, setuptools refuses the flat layout.)
+[tool.setuptools.packages.find]
+include = ["app*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

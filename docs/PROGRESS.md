@@ -23,7 +23,7 @@ Phase 9 has a CI seed only.
 | 4 | Real GitHub integration | ✅ Done | List repos/issues/tree, import issue → task pinned to (repo, branch, SHA), PR via REST with `Fixes #N`; 91 backend tests. Proven live: devpilot-demo issue #2 → PR #3 |
 | 5 | LangGraph agent | ✅ Done | Graph + Postgres checkpoints + interrupt-based approval, background runs, cancel/resume, budgets; 103 backend tests; proven live incl. resume across a server restart |
 | 6 | Repository RAG | ✅ Done | pgvector + FTS hybrid retrieval, file localization; smoke eval: root-cause localization 5/5 with RAG vs 2/5 without ([eval/phase6-rag.md](eval/phase6-rag.md)) |
-| 7 | Evaluation on SWE-bench Lite | ⬜ Not started | The resume number |
+| 7 | Evaluation on SWE-bench Lite | 🟡 In progress | Harness + official scoring + results UI built; 20-instance seeded run in progress ([eval/README.md](eval/README.md)) |
 | 8 | One MCP server + Langfuse | ⬜ Not started | + prompt-injection refusal test |
 | 9 | Deploy + portfolio polish | 🟡 Seed | CI workflow on origin; deploy + demo README pending |
 
