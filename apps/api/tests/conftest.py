@@ -82,6 +82,10 @@ def _engine() -> Generator:
     _create_test_database()
     engine = create_engine(TEST_DATABASE_URL, pool_pre_ping=True)
     Base.metadata.create_all(bind=engine)
+    # LangGraph checkpoint tables — before any test opens a transaction.
+    from app.agents.checkpoint import setup_checkpoint_tables
+
+    setup_checkpoint_tables(TEST_DATABASE_URL)
     try:
         yield engine
     finally:
@@ -140,3 +144,31 @@ def _reset_rate_limits() -> None:
 def auth_headers(client: TestClient) -> dict:
     """Authorization header for a default authenticated user."""
     return register_and_login(client, "owner@example.com")
+
+
+def _unconfigured(*args, **kwargs):  # noqa: ANN002, ANN003
+    raise AssertionError("This test did not configure this agent dependency")
+
+
+@pytest.fixture(autouse=True)
+def agent_deps(_engine, tmp_path):
+    """Agent dependencies for every test: test DB, in-memory checkpoints, and
+    no real LLM/sandbox/publisher unless a test sets them explicitly."""
+    from langgraph.checkpoint.memory import InMemorySaver
+
+    from app.agents.graph import AgentDeps
+    from app.agents.runner import get_agent_deps
+
+    deps = AgentDeps(
+        session_factory=sessionmaker(bind=_engine, autoflush=False),
+        checkpointer=InMemorySaver(),
+        llm_factory=_unconfigured,
+        sandbox=_unconfigured,
+        publisher=_unconfigured,
+        workspace_root=tmp_path / "runs",
+    )
+    fastapi_app.dependency_overrides[get_agent_deps] = lambda: deps
+    try:
+        yield deps
+    finally:
+        fastapi_app.dependency_overrides.pop(get_agent_deps, None)

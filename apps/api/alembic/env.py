@@ -21,6 +21,19 @@ config.set_main_option(
 
 target_metadata = Base.metadata
 
+# Tables owned by LangGraph's PostgresSaver (created by its own `setup()`), not
+# by our models. Without this, autogenerate would propose dropping them.
+_EXTERNAL_TABLES = {
+    "checkpoints",
+    "checkpoint_blobs",
+    "checkpoint_writes",
+    "checkpoint_migrations",
+}
+
+
+def include_object(object, name, type_, reflected, compare_to):  # noqa: A002
+    return not (type_ == "table" and reflected and name in _EXTERNAL_TABLES)
+
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode."""
@@ -31,6 +44,7 @@ def run_migrations_offline() -> None:
         url=url,
         target_metadata=target_metadata,
         literal_binds=True,
+        include_object=include_object,
         dialect_opts={"paramstyle": "named"},
     )
 
@@ -51,6 +65,7 @@ def run_migrations_online() -> None:
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
+            include_object=include_object,
         )
 
         with context.begin_transaction():
@@ -61,3 +76,12 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
+    # LangGraph's checkpoint tables (managed by the library, outside a
+    # transaction because it uses CREATE INDEX CONCURRENTLY). Skipped for
+    # autogenerate/check runs and downgrades.
+    if not getattr(config.cmd_opts, "autogenerate", False) and "downgrade" not in str(
+        getattr(config.cmd_opts, "cmd", "")
+    ):
+        from app.agents.checkpoint import setup_checkpoint_tables
+
+        setup_checkpoint_tables(settings.database_url)

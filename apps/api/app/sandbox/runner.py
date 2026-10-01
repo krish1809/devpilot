@@ -2,12 +2,14 @@
 
 Security posture (see docs/SECURITY.md): network disabled by default, CPU/
 memory/PID limits, a hard timeout, bounded captured output, and `--rm` so the
-container is always removed. The host Docker socket is never mounted and no host
+container is always removed. It runs as the host's (non-root) user so anything
+it writes into the mounted checkout stays removable, with bytecode writes off. The host Docker socket is never mounted and no host
 credentials are passed in. This never executes repository code on the API host.
 """
 
 from __future__ import annotations
 
+import os
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -50,6 +52,11 @@ def run_in_sandbox(
         cpus,
         "--pids-limit",
         "256",
+        *_user_args(),
+        "-e",
+        "PYTHONDONTWRITEBYTECODE=1",
+        "-e",
+        "HOME=/tmp",
         "-v",
         f"{workspace}:/work:rw",
         "-w",
@@ -86,6 +93,13 @@ def run_in_sandbox(
 
     output = _truncate((proc.stdout or "") + (proc.stderr or ""))
     return SandboxResult(passed=proc.returncode == 0, exit_code=proc.returncode, output=output)
+
+
+def _user_args() -> list[str]:
+    """Run as the invoking (non-root) user where the platform has uids."""
+    if hasattr(os, "getuid") and os.getuid() != 0:
+        return ["--user", f"{os.getuid()}:{os.getgid()}"]
+    return []
 
 
 def _truncate(text: str) -> str:

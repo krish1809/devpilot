@@ -84,5 +84,21 @@ def git_diff(workspace: Path) -> str:
     return _run(["git", "diff"], cwd=workspace)
 
 
+def reset_worktree(workspace: Path) -> None:
+    """Discard all changes (tracked edits and untracked files) in the checkout."""
+    _run(["git", "checkout", "--quiet", "--", "."], cwd=workspace)
+    _run(["git", "clean", "-fdq"], cwd=workspace)
+
+
+def changed_files(diff: str) -> set[str]:
+    """Paths touched by a unified ``git diff``."""
+    files: set[str] = set()
+    for line in diff.splitlines():
+        if line.startswith("diff --git a/"):
+            a, _, b = line[len("diff --git a/") :].partition(" b/")
+            files.update({a, b})
+    return files
+
+
 def head_commit(workspace: Path) -> str:
     return _run(["git", "rev-parse", "HEAD"], cwd=workspace).strip()

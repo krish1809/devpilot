@@ -59,3 +59,15 @@ def test_timeout_is_reported() -> None:
         result = run_in_sandbox(Path(tmp), "sleep 30", image=IMAGE, timeout_seconds=2)
         assert result.timed_out
         assert not result.passed
+
+
+@pytest.mark.skipif(not _docker_available(), reason="docker not available")
+def test_sandbox_writes_are_removable_by_host(tmp_path) -> None:  # noqa: ANN001
+    result = run_in_sandbox(
+        tmp_path, "mkdir -p out && touch out/f && id -u", image=IMAGE, timeout_seconds=60
+    )
+    assert result.passed
+    import os
+
+    assert result.output.strip() == str(os.getuid())
+    (tmp_path / "out" / "f").unlink()  # would raise PermissionError if root-owned

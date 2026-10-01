@@ -95,6 +95,18 @@ def git_auth_env(token: str) -> dict[str, str]:
     }
 
 
+def git_env_for(repo_url: str) -> dict[str, str] | None:
+    """Git auth env for github.com repos (so private repos clone); else None.
+
+    Public repos still clone anonymously if no token is configured."""
+    if parse_github_url(repo_url) is None:
+        return None
+    try:
+        return git_auth_env(get_token())
+    except GitHubError:
+        return None
+
+
 class GitHubClient:
     def __init__(self, token: str | None = None, *, transport: httpx.BaseTransport | None = None):
         self._client = httpx.Client(

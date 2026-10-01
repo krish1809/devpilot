@@ -4,11 +4,12 @@
 **Roadmap authority:** [PLAN.md](PLAN.md) (9 phases). This file tracks progress against those phases; it does not define them.
 
 ## Summary
-Phases 1–4 are done. The full loop (clone → baseline test → LLM patch →
-sandbox re-test → diff → human approval → real PR) runs from the browser, and
-tasks can now be imported straight from a GitHub issue on any repo the token can
-access. Next is **Phase 5 — the LangGraph agent**. Phases 5–8 are not started;
-Phase 9 has a CI seed only.
+Phases 1–5 are done. Tasks come straight from GitHub issues; the agent is a
+durable LangGraph state graph (plan → code → test with a bounded repair loop →
+review → human approval → PR) that runs in the background, checkpoints every
+step to Postgres, can be cancelled or resumed, and is capped on attempts, LLM
+calls, tokens, and time. Next is **Phase 6 — repository RAG**. Phases 6–8 are
+not started; Phase 9 has a CI seed only.
 
 ## Progress against PLAN.md phases
 
@@ -18,7 +19,7 @@ Phase 9 has a CI seed only.
 | 2 | **Walking skeleton (agent loop)** | ✅ Done | Groq + Docker sandbox + real PR; 64 tests |
 | 3 | Frontend + light auth | ✅ Done | Auth + projects + agent UI (create task, run, view diff/events, approve→PR). SSE live-streaming deferred (runs are synchronous) |
 | 4 | Real GitHub integration | ✅ Done | List repos/issues/tree, import issue → task pinned to (repo, branch, SHA), PR via REST with `Fixes #N`; 91 backend tests. Proven live: devpilot-demo issue #2 → PR #3 |
-| 5 | LangGraph agent | ⬜ Not started | Durable multi-step graph + HITL |
+| 5 | LangGraph agent | ✅ Done | Graph + Postgres checkpoints + interrupt-based approval, background runs, cancel/resume, budgets; 103 backend tests; proven live incl. resume across a server restart |
 | 6 | Repository RAG | ⬜ Not started | pgvector |
 | 7 | Evaluation on SWE-bench Lite | ⬜ Not started | The resume number |
 | 8 | One MCP server + Langfuse | ⬜ Not started | + prompt-injection refusal test |
@@ -44,9 +45,19 @@ Phase 9 has a CI seed only.
 - Frontend: `components/ImportFromIssue.tsx` on `/tasks` (repo → issue → file picker from the tree at the pinned SHA → test command); manual form kept as a fallback; task detail shows repo, issue link, branch @ SHA.
 - Tests: `apps/api/tests/test_github.py` (27, GitHub mocked with `httpx.MockTransport`); Vitest covers new client calls.
 
+## LangGraph agent detail (Phase 5)
+- `apps/api/app/agents/graph.py` — `StateGraph`: `prepare` (clone at pinned SHA, baseline test) → `plan` (LLM, numbered plan) → `code` (LLM, whole file) → `test` (sandbox) → repair loop back to `code` (≤ `agent_max_attempts`, failure output fed back) or `fail` → `review` (deterministic: non-empty, only the target file, ≤300 changed lines, no conflict markers) → `human_approval` (`interrupt()`) → `publish`. Every LLM call goes through a budget check (calls + tokens); every working node checks cancellation + wall-clock deadline.
+- `apps/api/app/agents/checkpoint.py` — `PostgresSaver` on a psycopg pool, thread id `run-<id>`. Its tables are created by `alembic upgrade head` (env.py hook) — **never lazily in a request** (its `CREATE INDEX CONCURRENTLY` deadlocks against the request's open transaction; found and fixed during this phase). Alembic autogenerate ignores those tables.
+- `apps/api/app/agents/runner.py` — `start_run`, `execute_run` (background; never raises, records every outcome), `cancel_run`, `prepare_resume`, `approve_run` (records Approval with diff hash, resumes with `Command(resume=…)`; `publish` refuses a stale hash), `checkpoint_history`. `AgentDeps` injects DB/LLM/sandbox/publisher/checkpointer (tests use fakes + InMemorySaver; one test uses a real PostgresSaver across a simulated restart).
+- Endpoints: `POST /tasks/{id}/run` → 202; `GET /tasks/{id}/runs`; `GET /runs/{id}/checkpoints`; `POST /runs/{id}/cancel|resume`. Migration `b88d25944321` adds `plan`, `attempts`, `llm_calls`, `prompt/completion_tokens`, `cancel_requested`.
+- Sandbox now runs as the host uid with `PYTHONDONTWRITEBYTECODE=1`.
+- UI (`app/tasks/[id]/page.tsx`): live polling, run history, plan, usage line, Cancel / Resume, sandbox output, graph checkpoints.
+- Live check (2026-10-01): real Groq + Docker + PostgresSaver — run paused at approval after ~12s (1 attempt, 2 LLM calls, ~1.2k tokens); server killed and restarted; the new process resumed the paused graph from Postgres and completed it.
+
 ## Immediate next steps
-1. Begin **Phase 5 — LangGraph agent** (see PLAN.md).
+1. Begin **Phase 6 — repository RAG** (see PLAN.md): pgvector, chunk + embed repo at the pinned commit, retrieve for planner/coder; lets the agent pick the file instead of requiring `target_path`.
 
 ## Limitations
-Single-file, single-LLM-call agent; synchronous runs; no RAG, evaluation, or
-deployment yet.
+Single-file agent (the task names the file); runs execute in the API process
+(no separate worker) and progress is polled, not streamed; no RAG, evaluation,
+or deployment yet.

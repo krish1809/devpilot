@@ -17,7 +17,7 @@ Treat task text, GitHub issue/comment content, repository files, model output, t
 Each tool needs a typed schema, explicit permission, server-side authorization, timeout, output limit, and audit record. Model output cannot authorize itself. Apply rate limits and narrow scopes.
 
 ## Sandbox
-Before running repository code, use a disposable isolated environment with CPU, memory, process, disk, and time limits. Disable network by default. Mount only required workspace data. Never mount the host Docker socket or pass host credentials into untrusted code. Bound logs and clean up reliably. Docker alone may not be a sufficient boundary for every multi-tenant threat model; review before hosted arbitrary-code execution.
+Before running repository code, use a disposable isolated environment with CPU, memory, process, disk, and time limits. Disable network by default. Mount only required workspace data. DevPilot runs the container as the host's non-root uid with bytecode writes off, so nothing it writes into the checkout is root-owned. Never mount the host Docker socket or pass host credentials into untrusted code. Bound logs and clean up reliably. Docker alone may not be a sufficient boundary for every multi-tenant threat model; review before hosted arbitrary-code execution.
 
 ## Human approval
 Require explicit approval before publishing a branch/PR. Bind approval to the exact diff/artifact hash and base commit; invalidate it if the artifact changes. Record approver, decision, and timestamp.

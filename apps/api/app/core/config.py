@@ -47,6 +47,14 @@ class Settings(BaseSettings):
     github_token: str = ""
     github_timeout_seconds: int = 20
 
+    # Agent (LangGraph) bounds — every run is capped so a runaway repair loop
+    # can't burn unbounded tokens or time.
+    agent_max_attempts: int = 3  # coder → tester iterations
+    agent_max_llm_calls: int = 8
+    agent_max_tokens: int = 100_000  # prompt + completion, per run
+    agent_run_timeout_seconds: int = 900  # wall clock per execution
+    agent_review_max_changed_lines: int = 300
+
     # Sandbox for running untrusted repository code.
     sandbox_image: str = "python:3.11-slim"
     sandbox_timeout_seconds: int = 120

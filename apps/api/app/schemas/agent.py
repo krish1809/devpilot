@@ -103,6 +103,30 @@ class RunEventResponse(BaseModel):
     created_at: datetime
 
 
+class RunSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    task_id: int
+    status: str
+    model: str
+    test_passed: bool | None
+    attempts: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class CheckpointResponse(BaseModel):
+    checkpoint_id: str
+    step: int
+    next: list[str]
+    created_at: datetime | None
+    attempts: int
+    test_passed: bool | None
+    llm_calls: int
+    waiting_for_approval: bool
+
+
 class RunResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -111,6 +135,12 @@ class RunResponse(BaseModel):
     status: str
     model: str
     base_commit: str | None
+    plan: str | None
+    attempts: int
+    llm_calls: int
+    prompt_tokens: int
+    completion_tokens: int
+    cancel_requested: bool
     diff: str | None
     test_passed: bool | None
     sandbox_output: str | None

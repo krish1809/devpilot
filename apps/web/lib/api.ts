@@ -5,6 +5,8 @@ import type {
   GitHubRepo,
   GitHubTree,
   Project,
+  RunCheckpoint,
+  RunSummary,
   ProjectCreateInput,
   ProjectUpdateInput,
   Task,
@@ -149,6 +151,15 @@ export const api = {
     request<AgentRun>(`/api/v1/tasks/${id}/run`, { method: "POST" }),
 
   getRun: (id: number) => request<AgentRun>(`/api/v1/runs/${id}`),
+
+  listTaskRuns: (taskId: number) => request<RunSummary[]>(`/api/v1/tasks/${taskId}/runs`),
+
+  getRunCheckpoints: (id: number) =>
+    request<RunCheckpoint[]>(`/api/v1/runs/${id}/checkpoints`),
+
+  cancelRun: (id: number) => request<AgentRun>(`/api/v1/runs/${id}/cancel`, { method: "POST" }),
+
+  resumeRun: (id: number) => request<AgentRun>(`/api/v1/runs/${id}/resume`, { method: "POST" }),
 
   // The PR targets the task's base branch unless one is given here.
   approveRun: (id: number, decision: "approved" | "rejected", baseBranch?: string) =>

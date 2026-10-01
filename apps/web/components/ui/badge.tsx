@@ -10,6 +10,8 @@ const STYLES: Record<string, string> = {
   rejected: "bg-muted text-muted-foreground border-border",
   error: "bg-destructive/15 text-destructive border-destructive/30",
   publish_failed: "bg-destructive/15 text-destructive border-destructive/30",
+  review_failed: "bg-warning/15 text-warning border-warning/30",
+  cancelled: "bg-muted text-muted-foreground border-border",
 };
 
 export function StatusBadge({ status }: { status: RunStatus | string }) {

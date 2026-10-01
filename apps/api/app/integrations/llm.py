@@ -30,6 +30,9 @@ class LLMError(Exception):
 
 
 class LLMProvider(Protocol):
+    """``complete`` returns the reply text. Providers may also expose
+    ``last_usage`` ({"prompt_tokens", "completion_tokens"}) for cost tracking."""
+
     def complete(self, messages: list[Message], *, temperature: float = 0.0) -> str: ...
 
 
@@ -51,6 +54,7 @@ class GroqProvider:
         self._model = model
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout_seconds
+        self.last_usage: dict | None = None
 
     def complete(self, messages: list[Message], *, temperature: float = 0.0) -> str:
         payload = {
@@ -92,9 +96,16 @@ class GroqProvider:
             raise LLMError(f"LLM returned {response.status_code}: {response.text[:300]}")
 
         try:
-            return response.json()["choices"][0]["message"]["content"]
+            data = response.json()
+            content = data["choices"][0]["message"]["content"]
         except (KeyError, IndexError, ValueError) as exc:
             raise LLMError("Unexpected LLM response shape") from exc
+        usage = data.get("usage") or {}
+        self.last_usage = {
+            "prompt_tokens": int(usage.get("prompt_tokens") or 0),
+            "completion_tokens": int(usage.get("completion_tokens") or 0),
+        }
+        return content
 
 
 def get_llm_provider() -> LLMProvider:

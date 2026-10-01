@@ -89,7 +89,9 @@ export type RunStatus =
   | "approved"
   | "rejected"
   | "published"
-  | "publish_failed";
+  | "publish_failed"
+  | "review_failed"
+  | "cancelled";
 
 export interface AgentRun {
   id: number;
@@ -97,6 +99,12 @@ export interface AgentRun {
   status: RunStatus;
   model: string;
   base_commit: string | null;
+  plan: string | null;
+  attempts: number;
+  llm_calls: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  cancel_requested: boolean;
   diff: string | null;
   test_passed: boolean | null;
   sandbox_output: string | null;
@@ -105,6 +113,28 @@ export interface AgentRun {
   updated_at: string;
   events: RunEvent[];
   pull_request: PullRequest | null;
+}
+
+export interface RunSummary {
+  id: number;
+  task_id: number;
+  status: RunStatus;
+  model: string;
+  test_passed: boolean | null;
+  attempts: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RunCheckpoint {
+  checkpoint_id: string;
+  step: number;
+  next: string[];
+  created_at: string | null;
+  attempts: number;
+  test_passed: boolean | null;
+  llm_calls: number;
+  waiting_for_approval: boolean;
 }
 
 // --- GitHub (Phase 4) ---

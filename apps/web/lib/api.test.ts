@@ -72,3 +72,24 @@ describe("github + approval client", () => {
     expect(JSON.parse(init.body as string)).toEqual({ decision: "approved" });
   });
 });
+
+describe("agent run lifecycle client", () => {
+  it("posts cancel and resume to the run", async () => {
+    const fetchMock = mockFetch(200, {});
+    globalThis.fetch = fetchMock;
+    await api.cancelRun(4);
+    await api.resumeRun(4);
+    const calls = fetchMock.mock.calls as unknown as [string, RequestInit][];
+    expect(calls[0][0]).toMatch(/\/api\/v1\/runs\/4\/cancel$/);
+    expect(calls[1][0]).toMatch(/\/api\/v1\/runs\/4\/resume$/);
+    expect(calls[1][1].method).toBe("POST");
+  });
+
+  it("lists a task's runs", async () => {
+    const fetchMock = mockFetch(200, []);
+    globalThis.fetch = fetchMock;
+    await api.listTaskRuns(7);
+    const calls = fetchMock.mock.calls as unknown as [string, RequestInit][];
+    expect(calls[0][0]).toMatch(/\/api\/v1\/tasks\/7\/runs$/);
+  });
+});

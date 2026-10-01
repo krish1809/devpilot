@@ -17,6 +17,8 @@ class RunStatus:
     REJECTED = "rejected"
     PUBLISHED = "published"  # PR opened
     PUBLISH_FAILED = "publish_failed"
+    REVIEW_FAILED = "review_failed"  # tests pass but the automated reviewer refused the diff
+    CANCELLED = "cancelled"
 
 
 class AgentRun(Base):
@@ -36,6 +38,22 @@ class AgentRun(Base):
     model: Mapped[str] = mapped_column(String(100), nullable=False)
     # The exact commit SHA the run was executed against.
     base_commit: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+    # LangGraph agent (Phase 5): the planner's output and per-run usage counters
+    # (the run's full step-by-step state lives in the LangGraph checkpointer,
+    # keyed by thread id "run-<id>").
+    plan: Mapped[str | None] = mapped_column(Text, nullable=True)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    llm_calls: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    prompt_tokens: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    completion_tokens: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    cancel_requested: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
 
     diff: Mapped[str | None] = mapped_column(Text, nullable=True)
     test_passed: Mapped[bool | None] = mapped_column(Boolean, nullable=True)

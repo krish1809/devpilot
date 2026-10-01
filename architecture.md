@@ -15,11 +15,11 @@
 | Database | PostgreSQL 17 | **In use** |
 | Tests / quality | pytest, HTTPX, Ruff | **In use** |
 | Packaging / run | Docker, docker-compose, Uvicorn | **In use** |
-| Frontend | Next.js, React, TypeScript, Tailwind | In use (Phase 3, partial) |
+| Frontend | Next.js, React, TypeScript, Tailwind | **In use** |
 | Auth | Basic JWT | In use (Phase 3) |
-| Agent orchestration | LangGraph | Planned (Phase 5) |
-| Sandbox | Docker, resource-limited, network-off | Planned (Phase 2 skeleton → matured Phase 5) |
-| GitHub integration | GitHub REST via fine-grained PAT | Planned (Phase 4) |
+| Agent orchestration | LangGraph + PostgresSaver checkpoints (`app/agents/`) | **In use** (Phase 5) |
+| Sandbox | Docker, resource-limited, network-off, non-root | **In use** |
+| GitHub integration | GitHub REST via fine-grained PAT | **In use** (Phase 4) |
 | Retrieval | pgvector, embeddings | Planned (Phase 6) |
 | Evaluation | SWE-bench Lite harness | Planned (Phase 7) |
 | Tools | one custom MCP server | Planned (Phase 8) |

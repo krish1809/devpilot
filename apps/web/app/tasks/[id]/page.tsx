@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, ExternalLink, Play } from "lucide-react";
+import { ArrowLeft, ExternalLink, Play, RotateCcw, Square } from "lucide-react";
 
 import { ErrorAlert } from "@/components/ui/alert";
 import { StatusBadge } from "@/components/ui/badge";
@@ -12,8 +12,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import type { AgentRun, Task } from "@/lib/types";
+import type { AgentRun, RunCheckpoint, RunSummary, Task } from "@/lib/types";
 import { formatDate } from "@/lib/utils";
+
+const POLL_MS = 1500;
+
+const errMsg = (err: unknown, fallback: string) =>
+  err instanceof ApiError ? err.message : fallback;
 
 export default function TaskDetailPage() {
   const { user, loading: authLoading } = useAuth();
@@ -25,8 +30,9 @@ export default function TaskDetailPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
 
+  const [runs, setRuns] = useState<RunSummary[]>([]);
   const [run, setRun] = useState<AgentRun | null>(null);
-  const [running, setRunning] = useState(false);
+  const [starting, setStarting] = useState(false);
   const [acting, setActing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -34,44 +40,71 @@ export default function TaskDetailPage() {
     if (!authLoading && !user) router.replace("/login");
   }, [user, authLoading, router]);
 
+  const loadRuns = useCallback(async () => {
+    const list = await api.listTaskRuns(taskId);
+    setRuns(list);
+    return list;
+  }, [taskId]);
+
   const load = useCallback(async () => {
     setLoadError(null);
     setNotFound(false);
     try {
       setTask(await api.getTask(taskId));
+      const list = await loadRuns();
+      if (list.length > 0) setRun(await api.getRun(list[0].id));
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) setNotFound(true);
-      else setLoadError(err instanceof ApiError ? err.message : "Failed to load task");
+      else setLoadError(errMsg(err, "Failed to load task"));
     }
-  }, [taskId]);
+  }, [taskId, loadRuns]);
 
   useEffect(() => {
     if (user && Number.isFinite(taskId)) load();
   }, [user, taskId, load]);
 
-  async function handleRun() {
-    setActionError(null);
-    setRunning(true);
-    setRun(null);
-    try {
-      setRun(await api.runTask(taskId));
-    } catch (err) {
-      setActionError(err instanceof ApiError ? err.message : "Run failed");
-    } finally {
-      setRunning(false);
-    }
-  }
+  // Poll while the graph is working in the background.
+  const runId = run?.id;
+  const isRunning = run?.status === "running";
+  useEffect(() => {
+    if (!runId || !isRunning) return;
+    const timer = setInterval(async () => {
+      try {
+        const next = await api.getRun(runId);
+        setRun(next);
+        if (next.status !== "running") loadRuns().catch(() => undefined);
+      } catch {
+        /* transient polling failure: try again next tick */
+      }
+    }, POLL_MS);
+    return () => clearInterval(timer);
+  }, [runId, isRunning, loadRuns]);
 
-  async function handleApprove(decision: "approved" | "rejected") {
-    if (!run) return;
+  async function act(fn: () => Promise<AgentRun>, fallback: string) {
     setActionError(null);
     setActing(true);
     try {
-      setRun(await api.approveRun(run.id, decision));
+      setRun(await fn());
+      await loadRuns();
     } catch (err) {
-      setActionError(err instanceof ApiError ? err.message : "Action failed");
+      setActionError(errMsg(err, fallback));
     } finally {
       setActing(false);
+    }
+  }
+
+  async function handleRun() {
+    setStarting(true);
+    await act(() => api.runTask(taskId), "Could not start the run");
+    setStarting(false);
+  }
+
+  async function selectRun(id: number) {
+    setActionError(null);
+    try {
+      setRun(await api.getRun(id));
+    } catch (err) {
+      setActionError(errMsg(err, "Failed to load run"));
     }
   }
 
@@ -137,22 +170,42 @@ export default function TaskDetailPage() {
                 <p className="whitespace-pre-wrap text-muted-foreground">{task.description}</p>
               )}
               <div className="pt-2">
-                <Button onClick={handleRun} disabled={running}>
-                  {running ? <Spinner /> : <Play className="h-4 w-4" />}
-                  {running ? "Running agent…" : "Run agent"}
+                <Button onClick={handleRun} disabled={starting || isRunning}>
+                  {starting ? <Spinner /> : <Play className="h-4 w-4" />}
+                  {isRunning ? "Agent is running…" : runs.length ? "Run again" : "Run agent"}
                 </Button>
-                {running && (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    Cloning, calling the model, and running the test in a sandbox — this can take up to a minute.
-                  </p>
-                )}
               </div>
             </CardContent>
           </Card>
 
+          {runs.length > 1 && (
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-muted-foreground">Runs:</span>
+              {runs.map((r) => (
+                <button
+                  key={r.id}
+                  onClick={() => selectRun(r.id)}
+                  className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 ${
+                    r.id === run?.id ? "border-primary" : "border-border hover:border-primary"
+                  }`}
+                >
+                  #{r.id} <StatusBadge status={r.status} />
+                </button>
+              ))}
+            </div>
+          )}
+
           {actionError && <ErrorAlert message={actionError} />}
 
-          {run && <RunView run={run} onApprove={handleApprove} acting={acting} />}
+          {run && (
+            <RunView
+              run={run}
+              acting={acting}
+              onApprove={(d) => act(() => api.approveRun(run.id, d), "Action failed")}
+              onCancel={() => act(() => api.cancelRun(run.id), "Could not cancel")}
+              onResume={() => act(() => api.resumeRun(run.id), "Could not resume")}
+            />
+          )}
         </>
       )}
     </div>
@@ -161,18 +214,25 @@ export default function TaskDetailPage() {
 
 function RunView({
   run,
-  onApprove,
   acting,
+  onApprove,
+  onCancel,
+  onResume,
 }: {
   run: AgentRun;
-  onApprove: (d: "approved" | "rejected") => void;
   acting: boolean;
+  onApprove: (d: "approved" | "rejected") => void;
+  onCancel: () => void;
+  onResume: () => void;
 }) {
+  const tokens = run.prompt_tokens + run.completion_tokens;
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center justify-between text-base">
-          <span>Run #{run.id}</span>
+          <span className="flex items-center gap-2">
+            Run #{run.id} {run.status === "running" && <Spinner />}
+          </span>
           <StatusBadge status={run.status} />
         </CardTitle>
       </CardHeader>
@@ -184,11 +244,40 @@ function RunView({
               commit <span className="font-mono">{run.base_commit.slice(0, 7)}</span> ·{" "}
             </>
           )}
-          test {run.test_passed === null ? "—" : run.test_passed ? "passed ✓" : "failed ✗"} ·{" "}
+          {run.attempts} attempt{run.attempts === 1 ? "" : "s"} · {run.llm_calls} LLM call
+          {run.llm_calls === 1 ? "" : "s"} · {tokens.toLocaleString()} tokens · test{" "}
+          {run.test_passed === null ? "—" : run.test_passed ? "passed ✓" : "failed ✗"} ·{" "}
           {formatDate(run.updated_at)}
         </p>
 
         {run.error && <ErrorAlert message={run.error} />}
+
+        {run.status === "running" && (
+          <div className="flex items-center gap-3">
+            <Button variant="secondary" onClick={onCancel} disabled={acting || run.cancel_requested}>
+              <Square className="h-4 w-4" />
+              {run.cancel_requested ? "Cancelling…" : "Cancel"}
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              Working in the background — this page updates live.
+            </span>
+          </div>
+        )}
+
+        {(run.status === "error" || run.status === "cancelled") && (
+          <Button variant="secondary" onClick={onResume} disabled={acting}>
+            {acting ? <Spinner /> : <RotateCcw className="h-4 w-4" />} Resume from last checkpoint
+          </Button>
+        )}
+
+        {run.plan && (
+          <div>
+            <p className="mb-1 text-sm font-medium">Plan</p>
+            <pre className="whitespace-pre-wrap rounded-md border border-border bg-muted p-3 text-xs">
+              {run.plan}
+            </pre>
+          </div>
+        )}
 
         {run.events.length > 0 && (
           <div>
@@ -215,6 +304,17 @@ function RunView({
           </div>
         )}
 
+        {run.sandbox_output && (
+          <details>
+            <summary className="cursor-pointer text-sm font-medium">Sandbox output</summary>
+            <pre className="mt-1 max-h-72 overflow-auto rounded-md border border-border bg-muted p-3 font-mono text-xs">
+              {run.sandbox_output}
+            </pre>
+          </details>
+        )}
+
+        <Checkpoints runId={run.id} status={run.status} />
+
         {run.pull_request && (
           <a
             href={run.pull_request.url}
@@ -238,5 +338,43 @@ function RunView({
         )}
       </CardContent>
     </Card>
+  );
+}
+
+/** The run's persisted LangGraph checkpoints, loaded when expanded. */
+function Checkpoints({ runId, status }: { runId: number; status: string }) {
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState<RunCheckpoint[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    api
+      .getRunCheckpoints(runId)
+      .then(setItems)
+      .catch((err) => setError(errMsg(err, "Failed to load checkpoints")));
+  }, [open, runId, status]);
+
+  return (
+    <details onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}>
+      <summary className="cursor-pointer text-sm font-medium">Graph checkpoints</summary>
+      {error ? (
+        <ErrorAlert message={error} className="mt-2" />
+      ) : items === null ? (
+        <p className="mt-1 text-xs text-muted-foreground">Loading…</p>
+      ) : items.length === 0 ? (
+        <p className="mt-1 text-xs text-muted-foreground">No checkpoints for this run.</p>
+      ) : (
+        <ol className="mt-1 space-y-0.5 font-mono text-xs text-muted-foreground">
+          {items.map((c) => (
+            <li key={c.checkpoint_id}>
+              step {c.step} → {c.next.length ? c.next.join(", ") : "end"}
+              {c.waiting_for_approval && " (waiting for approval)"} · attempts {c.attempts} · llm{" "}
+              {c.llm_calls}
+            </li>
+          ))}
+        </ol>
+      )}
+    </details>
   );
 }

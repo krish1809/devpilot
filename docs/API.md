@@ -56,9 +56,13 @@ All endpoints require authentication and are owner-scoped.
 | POST | `/api/v1/tasks/from-issue` | Import an **open** GitHub issue (`repo_full_name`, `issue_number`, `base_branch?`, `target_path`, `test_command`); resolves the branch to a commit SHA and pins the task to it; verifies `target_path` exists at that SHA; `201`/`404`/`422` |
 | GET | `/api/v1/tasks` | List caller's tasks; `200` |
 | GET | `/api/v1/tasks/{id}` | Get a task; `200`/`404` |
-| POST | `/api/v1/tasks/{id}/run` | Run the agent synchronously; returns the run with `diff`, `test_passed`, `status`, and `events` |
-| GET | `/api/v1/runs/{id}` | Get a run (with events and any pull request); `200`/`404` |
-| POST | `/api/v1/runs/{id}/approve` | `{decision: "approved"\|"rejected", base_branch?}`. Approving a **validated** run opens a PR against the task's base branch (override with `base_branch`); `409` if the run is not validated. The approval records the diff's SHA-256 and the run's base commit |
+| POST | `/api/v1/tasks/{id}/run` | Start the LangGraph agent **in the background**; `202` with the new run (`status: running`). Poll `GET /runs/{id}` |
+| GET | `/api/v1/tasks/{id}/runs` | The task's runs, newest first (`id`, `status`, `attempts`, `test_passed`, …) |
+| GET | `/api/v1/runs/{id}` | A run: `status`, `plan`, `attempts`, `llm_calls`, `prompt_tokens`, `completion_tokens`, `diff`, `sandbox_output`, `events`, `pull_request`; `200`/`404` |
+| GET | `/api/v1/runs/{id}/checkpoints` | Every persisted graph step (oldest first): `step`, `next` node(s), `attempts`, `llm_calls`, `waiting_for_approval` |
+| POST | `/api/v1/runs/{id}/cancel` | Request cancellation of a `running` run (stops at the next node boundary → `cancelled`); `409` otherwise |
+| POST | `/api/v1/runs/{id}/resume` | Continue an `error`/`cancelled`/abandoned run from its last checkpoint (`202`, background); `409` otherwise |
+| POST | `/api/v1/runs/{id}/approve` | `{decision: "approved"\|"rejected", base_branch?}`. Resumes the graph paused at `human_approval`. Approving a **validated** run publishes a PR against the task's base branch (override with `base_branch`); `409` if not validated. The approval records the diff's SHA-256 + base commit, and publishing refuses if the diff changed (stale approval). Failed runs can still be rejected |
 
 `target_path` must be a relative path inside the repo (no `..`, absolute paths, or `.git/`);
 branch names are validated so they can't be read as git options.
@@ -74,8 +78,10 @@ The token is never returned to clients. Upstream failures map to `404` (not foun
 | GET | `/api/v1/github/repos/{owner}/{name}/issues?state=open` | Issues (PRs filtered out) |
 | GET | `/api/v1/github/repos/{owner}/{name}/tree?ref=` | Files at `ref` (default branch if omitted) plus the resolved `commit_sha` |
 
-Run `status` values: `running`, `validated`, `test_failed`, `error`, `approved`,
-`rejected`, `published`, `publish_failed`. Publishing is impossible without an
+Run `status` values: `running`, `validated` (waiting for approval), `test_failed`,
+`review_failed`, `error`, `cancelled`, `approved`, `rejected`, `published`, `publish_failed`.
+Runs are bounded by `AGENT_MAX_ATTEMPTS` (3), `AGENT_MAX_LLM_CALLS` (8),
+`AGENT_MAX_TOKENS` (100k) and `AGENT_RUN_TIMEOUT_SECONDS` (900); hitting a bound ends the run as `error`. Publishing is impossible without an
 explicit approval of a run whose test actually passed (human-in-the-loop gate).
 Repository code is only ever executed in the disposable Docker sandbox.
 
@@ -99,7 +105,7 @@ Response includes `id`, `owner_id`, `name`, `description`, `created_at`, and `up
 - No pagination yet.
 - Rate limiting is in-memory/per-process (fine for a single API process; a multi-replica deployment would need a shared store, which is out of scope for this portfolio project).
 - No application-wide error envelope yet (validation uses the default FastAPI/Pydantic `422` shape; not-found/auth use `{"detail": "..."}`).
-- Agent runs are synchronous (no background worker / SSE yet).
+- Agent runs execute in the API process's background threads (FastAPI `BackgroundTasks`), not a separate worker; progress is polled, not streamed (no SSE). Cancellation is cooperative between graph steps.
 
 ## Evolution rules
 Keep routes versioned, use explicit schemas, validate inputs, maintain consistent errors, and test success, validation, missing-resource, and authorization paths.
