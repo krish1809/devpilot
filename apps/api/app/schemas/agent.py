@@ -154,6 +154,7 @@ class RunResponse(BaseModel):
     use_rag: bool
     target_path: str | None
     retrieval: dict | None
+    review_warnings: list[str] | None
     diff: str | None
     test_passed: bool | None
     sandbox_output: str | None

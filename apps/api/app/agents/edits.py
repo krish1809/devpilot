@@ -20,9 +20,11 @@ Anything less is rejected with a precise error that is fed back to the model.
 
 from __future__ import annotations
 
+import ast
 import difflib
 import math
 import re
+import warnings
 
 _IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]{2,}")
 _STOP = {
@@ -190,3 +192,35 @@ def apply_edits(original: str, reply: str) -> str:
     if text == original:
         raise EditError("The edits do not change the file.")
     return text
+
+
+def _parses(text: str) -> SyntaxError | None:
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            ast.parse(text)
+    except SyntaxError as exc:
+        return exc
+    return None
+
+
+def syntax_error(path: str, original: str, candidate: str) -> str | None:
+    """A readable message if an edit broke a Python file that used to parse.
+
+    Only parses (never executes) the code. Files that didn't parse before the
+    edit (e.g. Python 2 sources) aren't held to this check.
+    """
+    if not path.endswith(".py") or _parses(original) is not None:
+        return None
+    exc = _parses(candidate)
+    if exc is None:
+        return None
+    lines = candidate.splitlines()
+    n = exc.lineno or 1
+    around = "\n".join(
+        f"{i:>5}: {lines[i - 1]}" for i in range(max(1, n - 3), min(len(lines), n + 2) + 1)
+    )
+    return (
+        f"The edited file is not valid Python — {type(exc).__name__}: {exc.msg} "
+        f"(line {n}). Check indentation and block structure:\n{around}"
+    )

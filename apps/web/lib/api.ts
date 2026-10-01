@@ -8,6 +8,7 @@ import type {
   GitHubTree,
   Project,
   RunCheckpoint,
+  RunTrace,
   RunSummary,
   ProjectCreateInput,
   ProjectUpdateInput,
@@ -162,6 +163,8 @@ export const api = {
 
   getRunCheckpoints: (id: number) =>
     request<RunCheckpoint[]>(`/api/v1/runs/${id}/checkpoints`),
+
+  getRunTrace: (id: number) => request<RunTrace>(`/api/v1/runs/${id}/trace`),
 
   cancelRun: (id: number) => request<AgentRun>(`/api/v1/runs/${id}/cancel`, { method: "POST" }),
 

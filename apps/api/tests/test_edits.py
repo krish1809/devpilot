@@ -91,7 +91,7 @@ def test_failed_edit_is_retried_with_feedback(
     run = runner.run_to_completion(db_session, _big_repo_task(db_session, tmp_path), agent_deps)
 
     assert run.status == "validated" and run.attempts == 2
-    assert "could not be applied" in llm.calls[2][-1].content
+    assert "It was rejected:" in llm.calls[2][-1].content
 
 
 def test_edit_failures_exhaust_attempts(
@@ -129,3 +129,27 @@ def test_near_miss_search_matches_fuzzily_but_only_when_unique() -> None:
     blurry = "<<<<<<< SEARCH\ndef c(x):\n    y = x\n    return y\n=======\npass\n>>>>>>> REPLACE"
     with pytest.raises(EditError):
         apply_edits(twins, blurry)
+
+
+def test_syntax_gate_rejects_broken_python_and_retries(
+    db_session: Session, auth_headers: dict, agent_deps: AgentDeps
+) -> None:
+    broken = "def add(a, b):\n    return a + b\n  oops = (\n"
+    llm = ScriptedLLM("plan", broken, "def add(a, b):\n    return a + b\n")
+    agent_deps.llm_factory = lambda: llm
+    agent_deps.sandbox = ScriptedSandbox(False, True)
+    run = runner.run_to_completion(db_session, _task(db_session), agent_deps)
+
+    assert run.status == "validated" and run.attempts == 2
+    assert "not valid Python" in llm.calls[2][-1].content
+    assert agent_deps.sandbox.calls == 2  # baseline + the valid attempt; broken one never ran
+
+
+def test_syntax_gate_ignores_files_that_never_parsed() -> None:
+    from app.agents.edits import syntax_error
+
+    py2 = "print 'hello'\n"
+    assert syntax_error("legacy.py", py2, "print 'hi'\n") is None
+    assert syntax_error("notes.md", "a", "(((") is None
+    msg = syntax_error("m.py", "x = 1\n", "x = (\n")
+    assert msg and "line" in msg

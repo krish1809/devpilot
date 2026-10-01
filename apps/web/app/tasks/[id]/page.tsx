@@ -12,7 +12,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import type { AgentRun, RunCheckpoint, RunRetrieval, RunSummary, Task } from "@/lib/types";
+import type {
+  AgentRun,
+  RunCheckpoint,
+  RunRetrieval,
+  RunSummary,
+  RunTrace,
+  Task,
+} from "@/lib/types";
 import { formatDate } from "@/lib/utils";
 
 const POLL_MS = 1500;
@@ -334,6 +341,8 @@ function RunView({
 
         {run.retrieval && <RetrievalView retrieval={run.retrieval} />}
 
+        <TraceView runId={run.id} status={run.status} />
+
         <Checkpoints runId={run.id} status={run.status} />
 
         {run.pull_request && (
@@ -345,6 +354,21 @@ function RunView({
           >
             <ExternalLink className="h-4 w-4" /> View pull request #{run.pull_request.number}
           </a>
+        )}
+
+        {run.review_warnings && run.review_warnings.length > 0 && (
+          <div className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm">
+            <p className="mb-1 font-medium text-warning">Check before approving</p>
+            <ul className="list-disc space-y-0.5 pl-5 text-muted-foreground">
+              {run.review_warnings.map((w) => (
+                <li key={w}>{w}</li>
+              ))}
+            </ul>
+            <p className="mt-1 text-xs text-muted-foreground">
+              The patch newly adds security-sensitive code. Repository and issue text are
+              untrusted — make sure this isn&apos;t an injected instruction.
+            </p>
+          </div>
         )}
 
         {run.status === "validated" && (
@@ -391,6 +415,89 @@ function RetrievalView({ retrieval }: { retrieval: RunRetrieval }) {
         </ol>
         <p className="opacity-70">Embeddings: {index.model}</p>
       </div>
+    </details>
+  );
+}
+
+/** LLM calls and audited MCP tool calls for the run, loaded when expanded. */
+function TraceView({ runId, status }: { runId: number; status: string }) {
+  const [open, setOpen] = useState(false);
+  const [trace, setTrace] = useState<RunTrace | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    api
+      .getRunTrace(runId)
+      .then(setTrace)
+      .catch((err) => setError(errMsg(err, "Failed to load trace")));
+  }, [open, runId, status]);
+
+  return (
+    <details onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}>
+      <summary className="cursor-pointer text-sm font-medium">Trace (LLM + tool calls)</summary>
+      {error ? (
+        <ErrorAlert message={error} className="mt-2" />
+      ) : trace === null ? (
+        <p className="mt-1 text-xs text-muted-foreground">Loading…</p>
+      ) : (
+        <div className="mt-2 space-y-3 text-xs">
+          <p className="text-muted-foreground">
+            {trace.llm_calls.length} LLM calls · {trace.total_tokens.toLocaleString()} tokens ·{" "}
+            {(trace.llm_latency_ms / 1000).toFixed(1)}s model time · {trace.tool_calls.length}{" "}
+            tool calls
+          </p>
+          <table className="w-full">
+            <thead className="text-left text-muted-foreground">
+              <tr>
+                <th className="pr-2">LLM call</th>
+                <th className="pr-2">Prompt</th>
+                <th className="pr-2">Completion</th>
+                <th className="pr-2">Latency</th>
+                <th>Result</th>
+              </tr>
+            </thead>
+            <tbody className="font-mono">
+              {trace.llm_calls.map((c) => (
+                <tr key={c.id} className="border-t border-border">
+                  <td className="pr-2">{c.node}</td>
+                  <td className="pr-2">
+                    {c.prompt_tokens.toLocaleString()}
+                    {c.tokens_estimated && "~"}
+                  </td>
+                  <td className="pr-2">{c.completion_tokens.toLocaleString()}</td>
+                  <td className="pr-2">{(c.latency_ms / 1000).toFixed(1)}s</td>
+                  <td title={c.error ?? ""}>{c.ok ? "ok" : "error"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {trace.tool_calls.length > 0 && (
+            <table className="w-full">
+              <thead className="text-left text-muted-foreground">
+                <tr>
+                  <th className="pr-2">MCP tool</th>
+                  <th className="pr-2">Decision</th>
+                  <th className="pr-2">Latency</th>
+                  <th>Detail</th>
+                </tr>
+              </thead>
+              <tbody className="font-mono">
+                {trace.tool_calls.map((t) => (
+                  <tr key={t.id} className="border-t border-border">
+                    <td className="pr-2">{t.tool}</td>
+                    <td className="pr-2">
+                      {!t.allowed ? "denied" : t.ok ? "allowed" : "failed"}
+                    </td>
+                    <td className="pr-2">{(t.latency_ms / 1000).toFixed(1)}s</td>
+                    <td className="break-all text-muted-foreground">{t.detail ?? ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
     </details>
   );
 }

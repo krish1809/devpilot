@@ -64,6 +64,8 @@ class AgentRun(Base):
     )
     target_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     retrieval: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    # Security-sensitive additions flagged for the human reviewer (Phase 8).
+    review_warnings: Mapped[list | None] = mapped_column(JSONB, nullable=True)
 
     diff: Mapped[str | None] = mapped_column(Text, nullable=True)
     test_passed: Mapped[bool | None] = mapped_column(Boolean, nullable=True)

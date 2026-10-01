@@ -151,7 +151,7 @@ def coder_messages(state: AgentState, settings: Settings | None = None) -> list[
     user = _context(state, settings) + f"\nPlan:\n{state.get('plan', '(none)')}\n"
     if state.get("feedback"):
         previous = state.get("last_reply", "") if edit_mode else state.get("candidate", "")
-        problem = "It could not be applied:" if state.get("edit_error") else "It still fails with:"
+        problem = "It was rejected:" if state.get("edit_error") else "It still fails with:"
         user += (
             f"\nYour previous attempt:\n<previous_attempt>\n{_tail(previous, 4000)}\n"
             f"</previous_attempt>\n{problem}\n"

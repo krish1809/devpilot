@@ -108,6 +108,7 @@ export interface AgentRun {
   use_rag: boolean;
   target_path: string | null;
   retrieval: RunRetrieval | null;
+  review_warnings: string[] | null;
   diff: string | null;
   test_passed: boolean | null;
   sandbox_output: string | null;
@@ -130,6 +131,39 @@ export interface RunRetrieval {
   boosted_paths: string[];
   candidates: string[];
   context: RetrievedChunk[];
+}
+
+export interface LlmCallTrace {
+  id: number;
+  node: string;
+  model: string;
+  prompt_chars: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  tokens_estimated: boolean;
+  latency_ms: number;
+  ok: boolean;
+  error: string | null;
+  created_at: string;
+}
+
+export interface ToolCallTrace {
+  id: number;
+  tool: string;
+  arguments: Record<string, unknown>;
+  allowed: boolean;
+  ok: boolean;
+  detail: string | null;
+  output_chars: number;
+  latency_ms: number;
+  created_at: string;
+}
+
+export interface RunTrace {
+  llm_calls: LlmCallTrace[];
+  tool_calls: ToolCallTrace[];
+  total_tokens: number;
+  llm_latency_ms: number;
 }
 
 export interface RunSummary {

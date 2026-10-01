@@ -38,7 +38,7 @@ from langgraph.types import interrupt
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.agents.edits import EditError, apply_edits
+from app.agents.edits import EditError, apply_edits, syntax_error
 from app.agents.prompts import (  # noqa: F401  (re-exported for callers/tests)
     _is_edit_mode,
     _tail,
@@ -47,6 +47,7 @@ from app.agents.prompts import (  # noqa: F401  (re-exported for callers/tests)
     parse_localized_plan,
     planner_messages,
 )
+from app.agents.risk import risk_warnings
 from app.core.config import Settings, get_settings
 from app.integrations import git_ops, github_api, github_pr
 from app.integrations.llm import LLMError, LLMProvider, Message, get_llm_provider
@@ -426,10 +427,20 @@ def _retrieve(deps: AgentDeps, deadline: float | None, state: AgentState) -> dic
     }  # fmt: skip
 
 
+_PROTECTED_PREFIXES = (".github/", ".gitlab/", ".circleci/", ".buildkite/", ".husky/")
+_PROTECTED_FILES = {
+    ".gitlab-ci.yml", ".travis.yml", "azure-pipelines.yml", ".pre-commit-config.yaml",
+    "Jenkinsfile", ".gitmodules",
+}  # fmt: skip
+
+
 def _is_allowed_target(ws: Path, path: str | None) -> bool:
     """Server-side policy for a model-chosen file: a safe, tracked, indexable
-    text file (never a secret, vendored, or binary file)."""
+    text file — never a secret, vendored or binary file, and never CI/automation
+    config (a classic supply-chain target for an injected agent)."""
     if not path or not git_ops.is_safe_relpath(path) or not is_indexable_path(path):
+        return False
+    if path.startswith(_PROTECTED_PREFIXES) or Path(path).name in _PROTECTED_FILES:
         return False
     tracked = git_ops._run(["git", "ls-files", "--", path], cwd=ws).strip()
     return tracked == path and read_indexable_text(ws, path) is not None
@@ -479,7 +490,7 @@ def _code(deps: AgentDeps, deadline: float | None, state: AgentState) -> dict:
         "code",
         f"Attempt {attempt}/{max_attempts}: "
         + (
-            "retrying after an edit that could not be applied"
+            "retrying after a rejected edit"
             if state.get("edit_error")
             else "repairing after a failed test"
             if state.get("feedback")
@@ -488,15 +499,18 @@ def _code(deps: AgentDeps, deadline: float | None, state: AgentState) -> dict:
     )
     reply, usage = _call_llm(deps, state, coder_messages(state, deps.settings), "code")
     _update_run(deps, run_id, attempts=attempt)
-    if not _is_edit_mode(state, deps.settings):
-        candidate = extract_file_contents(reply)
-        return {"candidate": candidate, "last_reply": reply, "edit_error": "",
-                "attempts": attempt, **usage}  # fmt: skip
     try:
-        candidate = apply_edits(state["original"], reply)
+        if _is_edit_mode(state, deps.settings):
+            candidate = apply_edits(state["original"], reply)
+        else:
+            candidate = extract_file_contents(reply)
+        # Syntax gate: never hand a file that no longer parses to tests/review.
+        broken = syntax_error(state["target_path"], state["original"], candidate)
+        if broken:
+            raise EditError(broken)
     except EditError as exc:
         snippet = " ".join(reply.split())[:300]
-        _event(deps, run_id, "code", f"Edit could not be applied: {exc} | reply: {snippet}")
+        _event(deps, run_id, "code", f"Edit rejected: {exc} | reply: {snippet}")
         return {"edit_error": str(exc), "feedback": str(exc), "last_reply": reply,
                 "attempts": attempt, **usage}  # fmt: skip
     return {"candidate": candidate, "last_reply": reply, "edit_error": "",
@@ -550,11 +564,18 @@ def _review(deps: AgentDeps, deadline: float | None, state: AgentState) -> dict:
     if "<<<<<<<" in state.get("candidate", "") or ">>>>>>>" in state.get("candidate", ""):
         notes.append("Patch contains merge-conflict markers.")
 
+    warnings = risk_warnings(diff)
+    if warnings:
+        _event(deps, run_id, "review", "⚠ Needs a careful look: " + "; ".join(warnings))
+
     if notes:
-        _update_run(deps, run_id, status=RunStatus.REVIEW_FAILED, error="; ".join(notes)[:2000])
+        _update_run(
+            deps, run_id, status=RunStatus.REVIEW_FAILED, error="; ".join(notes)[:2000],
+            review_warnings=warnings,
+        )  # fmt: skip
         _event(deps, run_id, "review", "Review refused the patch: " + "; ".join(notes))
     else:
-        _update_run(deps, run_id, status=RunStatus.VALIDATED)
+        _update_run(deps, run_id, status=RunStatus.VALIDATED, review_warnings=warnings)
         _event(
             deps,
             run_id,

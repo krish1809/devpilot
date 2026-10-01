@@ -87,6 +87,9 @@ def scrub(text: str | None) -> str | None:
     return _ORG_ID.sub("org_[redacted]", text) if text else text
 
 
+_MAX_HARNESS_ERRORS = 3
+
+
 class QuotaExhausted(Exception):
     """The LLM provider's daily quota is used up; resume later."""
 
@@ -343,9 +346,22 @@ def score(
                     "tests_status": _summarize_tests(detail.get("tests_status") or {}),
                     "infra_failure": reasons.get(instance_id),
                 }
-            else:  # harness error (e.g. patch failed to apply): unresolved
+            else:
+                # The harness itself failed (e.g. Docker Hub couldn't serve the image):
+                # not a verdict on the patch. Retry on the next pass; only after
+                # repeated failures record it as an infra failure (unresolved).
+                attempts = (r.score_detail or {}).get("harness_errors", 0) + 1
+                r.score_detail = {
+                    "harness_errors": attempts,
+                    "stderr": scrub(proc.stderr[-1500:]),
+                    **({"infra_failure": "harness_error"} if attempts >= _MAX_HARNESS_ERRORS
+                       else {}),
+                }  # fmt: skip
+                if attempts < _MAX_HARNESS_ERRORS:
+                    db.commit()
+                    log(f"{instance_id} [{r.config}] harness error #{attempts}; will retry")
+                    continue
                 r.resolved = False
-                r.score_detail = {"reason": "no report", "stderr": proc.stderr[-1500:]}
             r.scored_at = datetime.now(UTC)
             db.commit()
             log(f"{instance_id} [{r.config}] resolved={r.resolved}")

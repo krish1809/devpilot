@@ -117,3 +117,13 @@ describe("benchmarks client", () => {
     expect(calls[1][0]).toMatch(/\/api\/v1\/evals\/2$/);
   });
 });
+
+describe("run trace client", () => {
+  it("fetches a run's trace", async () => {
+    const fetchMock = mockFetch(200, { llm_calls: [], tool_calls: [], total_tokens: 0 });
+    globalThis.fetch = fetchMock;
+    await api.getRunTrace(5);
+    const calls = fetchMock.mock.calls as unknown as [string, RequestInit][];
+    expect(calls[0][0]).toMatch(/\/api\/v1\/runs\/5\/trace$/);
+  });
+});

@@ -136,3 +136,27 @@ def test_eval_endpoints(client: TestClient, db_session: Session, auth_headers: d
     detail = client.get(f"/api/v1/evals/{run.id}", headers=auth_headers).json()
     assert len(detail["results"]) == 2 and detail["settings"] == {"seed": 3}
     assert client.get("/api/v1/evals/999", headers=auth_headers).status_code == 404
+
+
+def test_harness_errors_are_retried_not_scored(
+    tmp_path: Path, db_session: Session, monkeypatch
+) -> None:
+    run = sb.get_or_create_run(db_session, "h", [], ["rag"], {})
+    db_session.add(EvalResult(eval_run_id=run.id, instance_id="a__a-1", repo="x/y",
+                              config="rag", status="validated", patch=PATCH))  # fmt: skip
+    db_session.commit()
+
+    monkeypatch.setattr(sb, "SWEBENCH_PY", tmp_path / "python")
+    (tmp_path / "python").write_text("")
+    failed = type("P", (), {"stderr": "Image not found for org_ABC123", "returncode": 1})
+    # no report.json produced: e.g. the image couldn't be pulled
+    monkeypatch.setattr(sb.subprocess, "run", lambda *a, **k: failed())
+    monkeypatch.setattr(sb, "_remove_instance_images", lambda iid: None)
+
+    for expected in (None, None, False):
+        sb.score(db_session, run, workdir=tmp_path / "w", log=lambda m: None)
+        db_session.expire_all()
+        r = db_session.query(EvalResult).one()
+        assert r.resolved is expected
+    assert r.score_detail["infra_failure"] == "harness_error"
+    assert "org_ABC123" not in r.score_detail["stderr"]
