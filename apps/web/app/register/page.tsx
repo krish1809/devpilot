@@ -14,7 +14,7 @@ import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 
 export default function RegisterPage() {
-  const { user, loading, register } = useAuth();
+  const { user, loading, register, demoMode, loginDemo } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -41,6 +41,55 @@ export default function RegisterPage() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  async function handleDemo() {
+    setError(null);
+    setSubmitting(true);
+    try {
+      await loginDemo();
+      router.push("/tasks");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not open the demo");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  // The public showcase can't run the agent (no Docker sandbox, no LLM key), so
+  // accounts there would have nothing to do: sign-up is off and the API refuses it.
+  if (demoMode) {
+    return (
+      <div className="mx-auto max-w-md pt-8">
+        <Card>
+          <CardHeader>
+            <CardTitle>Sign-up is off on the public showcase</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-muted-foreground">
+            {error && <ErrorAlert message={error} />}
+            <p>
+              This site is a read-only tour of real DevPilot runs. Running the agent needs
+              Docker and an LLM key, so it runs on your own machine — where you can sign up
+              normally.
+            </p>
+            <Button className="w-full" onClick={handleDemo} disabled={submitting}>
+              {submitting && <Spinner />}
+              View the demo — no account needed
+            </Button>
+            <p className="text-center">
+              <a
+                href="https://github.com/krish1809/devpilot#run-it-locally"
+                className="text-primary hover:underline"
+                target="_blank"
+                rel="noreferrer"
+              >
+                How to run it locally
+              </a>
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (
