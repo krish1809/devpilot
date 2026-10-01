@@ -6,7 +6,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app.integrations.git_ops import is_safe_branch, is_safe_relpath
 
 
-def _check_target_path(v: str) -> str:
+def _check_target_path(v: str | None) -> str | None:
+    if v is None or not v.strip():
+        return None
     v = v.strip()
     if not is_safe_relpath(v):
         raise ValueError("must be a relative path inside the repository")
@@ -29,7 +31,8 @@ class TaskCreate(BaseModel):
     base_commit: str | None = Field(default=None, max_length=64)
     base_branch: str | None = Field(default=None, max_length=200)
     test_command: str = Field(min_length=1, max_length=500)
-    target_path: str = Field(min_length=1, max_length=500)
+    # Optional: leave empty to let the agent localize the file (needs RAG).
+    target_path: str | None = Field(default=None, max_length=500)
     description: str | None = None
 
     _target = field_validator("target_path")(_check_target_path)
@@ -51,7 +54,7 @@ class TaskFromIssueCreate(BaseModel):
     issue_number: int = Field(gt=0)
     base_branch: str | None = Field(default=None, max_length=200)
     test_command: str = Field(min_length=1, max_length=500)
-    target_path: str = Field(min_length=1, max_length=500)
+    target_path: str | None = Field(default=None, max_length=500)
 
     _target = field_validator("target_path")(_check_target_path)
     _branch = field_validator("base_branch")(_check_branch)
@@ -70,9 +73,14 @@ class TaskResponse(BaseModel):
     issue_title: str | None
     issue_url: str | None
     test_command: str
-    target_path: str
+    target_path: str | None
     description: str | None
     created_at: datetime
+
+
+class RunRequest(BaseModel):
+    # Use repository retrieval for this run (default: RAG_ENABLED setting).
+    use_rag: bool | None = None
 
 
 class ApprovalRequest(BaseModel):
@@ -141,6 +149,9 @@ class RunResponse(BaseModel):
     prompt_tokens: int
     completion_tokens: int
     cancel_requested: bool
+    use_rag: bool
+    target_path: str | None
+    retrieval: dict | None
     diff: str | None
     test_passed: bool | None
     sandbox_output: str | None

@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import type { AgentRun, RunCheckpoint, RunSummary, Task } from "@/lib/types";
+import type { AgentRun, RunCheckpoint, RunRetrieval, RunSummary, Task } from "@/lib/types";
 import { formatDate } from "@/lib/utils";
 
 const POLL_MS = 1500;
@@ -34,6 +34,7 @@ export default function TaskDetailPage() {
   const [run, setRun] = useState<AgentRun | null>(null);
   const [starting, setStarting] = useState(false);
   const [acting, setActing] = useState(false);
+  const [useRag, setUseRag] = useState(true);
   const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -95,7 +96,7 @@ export default function TaskDetailPage() {
 
   async function handleRun() {
     setStarting(true);
-    await act(() => api.runTask(taskId), "Could not start the run");
+    await act(() => api.runTask(taskId, useRag), "Could not start the run");
     setStarting(false);
   }
 
@@ -154,7 +155,9 @@ export default function TaskDetailPage() {
             <CardContent className="space-y-2 text-sm">
               <p>
                 <span className="text-muted-foreground">Target file:</span>{" "}
-                <span className="font-mono">{task.target_path}</span>
+                <span className="font-mono">
+                  {task.target_path ?? "not set — the agent localizes it"}
+                </span>
               </p>
               <p>
                 <span className="text-muted-foreground">Test:</span>{" "}
@@ -169,11 +172,19 @@ export default function TaskDetailPage() {
               {task.description && (
                 <p className="whitespace-pre-wrap text-muted-foreground">{task.description}</p>
               )}
-              <div className="pt-2">
+              <div className="flex flex-wrap items-center gap-4 pt-2">
                 <Button onClick={handleRun} disabled={starting || isRunning}>
                   {starting ? <Spinner /> : <Play className="h-4 w-4" />}
                   {isRunning ? "Agent is running…" : runs.length ? "Run again" : "Run agent"}
                 </Button>
+                <label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={useRag}
+                    onChange={(e) => setUseRag(e.target.checked)}
+                  />
+                  Use repository context (RAG)
+                </label>
               </div>
             </CardContent>
           </Card>
@@ -250,6 +261,14 @@ function RunView({
           {formatDate(run.updated_at)}
         </p>
 
+        {run.target_path && (
+          <p className="text-sm">
+            <span className="text-muted-foreground">Editing:</span>{" "}
+            <span className="font-mono">{run.target_path}</span>
+            {run.use_rag && <span className="ml-2 text-xs text-muted-foreground">(RAG on)</span>}
+          </p>
+        )}
+
         {run.error && <ErrorAlert message={run.error} />}
 
         {run.status === "running" && (
@@ -313,6 +332,8 @@ function RunView({
           </details>
         )}
 
+        {run.retrieval && <RetrievalView retrieval={run.retrieval} />}
+
         <Checkpoints runId={run.id} status={run.status} />
 
         {run.pull_request && (
@@ -338,6 +359,39 @@ function RunView({
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function RetrievalView({ retrieval }: { retrieval: RunRetrieval }) {
+  const { index, candidates, context, boosted_paths } = retrieval;
+  return (
+    <details>
+      <summary className="cursor-pointer text-sm font-medium">
+        Retrieved context ({context.length} chunks · index of {index.files} files /{" "}
+        {index.chunks} chunks{index.built_now ? ", built for this run" : ", reused"})
+      </summary>
+      <div className="mt-1 space-y-2 text-xs text-muted-foreground">
+        {candidates.length > 0 && (
+          <p>
+            Candidate files: <span className="font-mono">{candidates.join(", ")}</span>
+          </p>
+        )}
+        {boosted_paths.length > 0 && (
+          <p>
+            From the traceback: <span className="font-mono">{boosted_paths.join(", ")}</span>
+          </p>
+        )}
+        <ol className="space-y-0.5 font-mono">
+          {context.map((c) => (
+            <li key={`${c.path}:${c.start_line}`}>
+              {c.path}:{c.start_line}-{c.end_line}{" "}
+              <span className="opacity-70">({c.score.toFixed(4)})</span>
+            </li>
+          ))}
+        </ol>
+        <p className="opacity-70">Embeddings: {index.model}</p>
+      </div>
+    </details>
   );
 }
 

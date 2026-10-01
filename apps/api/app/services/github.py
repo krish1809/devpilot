@@ -45,7 +45,8 @@ def import_issue(db: Session, gh: GitHubClient, owner_id: int, data: TaskFromIss
     issue = gh.get_issue(repo, data.issue_number)
     if issue["state"] != "open":
         raise GitHubError(f"Issue #{data.issue_number} is not open", status=422)
-    gh.read_file(repo, data.target_path, sha)  # existence + text check at the pinned commit
+    if data.target_path:  # existence + text check at the pinned commit
+        gh.read_file(repo, data.target_path, sha)
 
     description = f"{issue['title']}\n\n{issue['body']}".strip()
     return agent_service.create_task(

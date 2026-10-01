@@ -55,6 +55,15 @@ class Settings(BaseSettings):
     agent_run_timeout_seconds: int = 900  # wall clock per execution
     agent_review_max_changed_lines: int = 300
 
+    # Repository RAG (Phase 6). Local embeddings by default (no API key).
+    rag_enabled: bool = True  # default for new runs; overridable per run
+    embedding_model: str = "BAAI/bge-small-en-v1.5"  # must produce 384-d vectors
+    embedding_cache_dir: str = ""  # fastembed model cache ("" = library default)
+    rag_max_files: int = 3000
+    rag_max_chunks: int = 8000
+    rag_context_chars: int = 12_000  # retrieved context budget per prompt
+    rag_candidate_files: int = 8  # files offered to the planner for localization
+
     # Sandbox for running untrusted repository code.
     sandbox_image: str = "python:3.11-slim"
     sandbox_timeout_seconds: int = 120

@@ -20,7 +20,7 @@
 | Agent orchestration | LangGraph + PostgresSaver checkpoints (`app/agents/`) | **In use** (Phase 5) |
 | Sandbox | Docker, resource-limited, network-off, non-root | **In use** |
 | GitHub integration | GitHub REST via fine-grained PAT | **In use** (Phase 4) |
-| Retrieval | pgvector, embeddings | Planned (Phase 6) |
+| Retrieval | pgvector + Postgres FTS (hybrid, RRF), fastembed bge-small (`app/rag/`) | **In use** (Phase 6) |
 | Evaluation | SWE-bench Lite harness | Planned (Phase 7) |
 | Tools | one custom MCP server | Planned (Phase 8) |
 | Observability | Langfuse (tracing) | Planned (Phase 8) |

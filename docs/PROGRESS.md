@@ -4,12 +4,14 @@
 **Roadmap authority:** [PLAN.md](PLAN.md) (9 phases). This file tracks progress against those phases; it does not define them.
 
 ## Summary
-Phases 1–5 are done. Tasks come straight from GitHub issues; the agent is a
-durable LangGraph state graph (plan → code → test with a bounded repair loop →
-review → human approval → PR) that runs in the background, checkpoints every
-step to Postgres, can be cancelled or resumed, and is capped on attempts, LLM
-calls, tokens, and time. Next is **Phase 6 — repository RAG**. Phases 6–8 are
-not started; Phase 9 has a CI seed only.
+Phases 1–6 are done. Tasks come straight from GitHub issues; the agent is a
+durable LangGraph state graph (retrieve → plan → code → test with a bounded
+repair loop → review → human approval → PR) that runs in the background,
+checkpoints every step to Postgres, can be cancelled or resumed, and is capped
+on attempts, LLM calls, tokens, and time. Repository RAG (pgvector + full-text,
+local embeddings) lets the agent find the file to fix from the issue alone.
+Next is **Phase 7 — evaluation on SWE-bench Lite**. Phases 7–8 are not started;
+Phase 9 has a CI seed only.
 
 ## Progress against PLAN.md phases
 
@@ -20,7 +22,7 @@ not started; Phase 9 has a CI seed only.
 | 3 | Frontend + light auth | ✅ Done | Auth + projects + agent UI (create task, run, view diff/events, approve→PR). SSE live-streaming deferred (runs are synchronous) |
 | 4 | Real GitHub integration | ✅ Done | List repos/issues/tree, import issue → task pinned to (repo, branch, SHA), PR via REST with `Fixes #N`; 91 backend tests. Proven live: devpilot-demo issue #2 → PR #3 |
 | 5 | LangGraph agent | ✅ Done | Graph + Postgres checkpoints + interrupt-based approval, background runs, cancel/resume, budgets; 103 backend tests; proven live incl. resume across a server restart |
-| 6 | Repository RAG | ⬜ Not started | pgvector |
+| 6 | Repository RAG | ✅ Done | pgvector + FTS hybrid retrieval, file localization; smoke eval: root-cause localization 5/5 with RAG vs 2/5 without ([eval/phase6-rag.md](eval/phase6-rag.md)) |
 | 7 | Evaluation on SWE-bench Lite | ⬜ Not started | The resume number |
 | 8 | One MCP server + Langfuse | ⬜ Not started | + prompt-injection refusal test |
 | 9 | Deploy + portfolio polish | 🟡 Seed | CI workflow on origin; deploy + demo README pending |
@@ -54,10 +56,19 @@ not started; Phase 9 has a CI seed only.
 - UI (`app/tasks/[id]/page.tsx`): live polling, run history, plan, usage line, Cancel / Resume, sandbox output, graph checkpoints.
 - Live check (2026-10-01): real Groq + Docker + PostgresSaver — run paused at approval after ~12s (1 attempt, 2 LLM calls, ~1.2k tokens); server killed and restarted; the new process resumed the paused graph from Postgres and completed it.
 
+## Repository RAG detail (Phase 6)
+- Postgres now runs `devpilot-postgres:17-pgvector` (`infra/postgres/Dockerfile`: `FROM postgres:17` + `postgresql-17-pgvector`, same Debian/glibc as before so the existing volume's collations are unchanged; the official pgvector image is bookworm and is only used in CI). Dev DB backed up before the swap; data verified intact.
+- `apps/api/app/rag/`: `chunking.py` (tracked files only; Python split at top-level defs, others in overlapping 60-line windows; exclusions + secret redaction), `embeddings.py` (provider-neutral `Embedder`; default fastembed `BAAI/bge-small-en-v1.5`, local ONNX, 384-d), `index.py` (atomic build-or-reuse per (repo, commit, model); hybrid retrieval = exact cosine over the index + Postgres FTS on identifiers, fused with RRF; traceback-named files boosted; files ranked by best chunk).
+- Tables `repo_indexes`, `repo_chunks` (vector(384) + generated tsvector, GIN) — migration `cb5554ccaecd`, which also makes `tasks.target_path` nullable and adds `agent_runs.use_rag/target_path/retrieval`.
+- Graph: new `retrieve` node (prepare → retrieve → plan). Retrieved chunks go to planner + coder as delimited untrusted context (minus the file sent whole). With no `target_path`, `plan` localizes (`TARGET:`/`PLAN:` format) and the server validates the choice (safe, tracked, indexable) or falls back to the top candidate. RAG is per-run (`use_rag`); with RAG off and no target, the planner gets the file list (baseline).
+- LLM client now retries 429s, waiting as the provider asks (Retry-After / "try again in Xs"), capped at 30s × 6 — Groq's free tier is 8k tokens/min.
+- Evaluation: `python -m scripts.rag_eval --owner <email>` → [docs/eval/phase6-rag.md](eval/phase6-rag.md). Both configs resolved 5/5; RAG fixed the root-cause file 5/5 vs 2/5 (no-RAG patched callers — workarounds), ~20% fewer tokens.
+- Tests: 137 backend (chunking/exclusions/redaction, pgvector index + hybrid retrieval on the real test DB, localization + fallback, context exclusion, RAG on/off, 429 retry). Web: lint + tsc + 10 Vitest + build.
+
 ## Immediate next steps
-1. Begin **Phase 6 — repository RAG** (see PLAN.md): pgvector, chunk + embed repo at the pinned commit, retrieve for planner/coder; lets the agent pick the file instead of requiring `target_path`.
+1. Begin **Phase 7 — SWE-bench Lite** (see PLAN.md): a harness that runs the agent on SWE-bench Lite instances (repo + base commit + issue + FAIL_TO_PASS tests) and reports resolve rate, cost, latency; compare baseline vs RAG. Expect to need per-repo sandbox images (dependencies) and to respect Groq's rate limit.
 
 ## Limitations
-Single-file agent (the task names the file); runs execute in the API process
+Single-file agent (the task may name the file, or the agent localizes one); runs execute in the API process
 (no separate worker) and progress is polled, not streamed; no RAG, evaluation,
 or deployment yet.

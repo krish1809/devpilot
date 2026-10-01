@@ -51,7 +51,7 @@ export interface Task {
   issue_title: string | null;
   issue_url: string | null;
   test_command: string;
-  target_path: string;
+  target_path: string | null;
   description: string | null;
   created_at: string;
 }
@@ -61,7 +61,7 @@ export interface TaskCreateInput {
   base_commit?: string | null;
   base_branch?: string | null;
   test_command: string;
-  target_path: string;
+  target_path?: string | null;
   description?: string | null;
 }
 
@@ -105,6 +105,9 @@ export interface AgentRun {
   prompt_tokens: number;
   completion_tokens: number;
   cancel_requested: boolean;
+  use_rag: boolean;
+  target_path: string | null;
+  retrieval: RunRetrieval | null;
   diff: string | null;
   test_passed: boolean | null;
   sandbox_output: string | null;
@@ -113,6 +116,20 @@ export interface AgentRun {
   updated_at: string;
   events: RunEvent[];
   pull_request: PullRequest | null;
+}
+
+export interface RetrievedChunk {
+  path: string;
+  start_line: number;
+  end_line: number;
+  score: number;
+}
+
+export interface RunRetrieval {
+  index: { id: number; files: number; chunks: number; built_now: boolean; model: string };
+  boosted_paths: string[];
+  candidates: string[];
+  context: RetrievedChunk[];
 }
 
 export interface RunSummary {
@@ -169,5 +186,5 @@ export interface TaskFromIssueInput {
   issue_number: number;
   base_branch?: string | null;
   test_command: string;
-  target_path: string;
+  target_path?: string | null;
 }

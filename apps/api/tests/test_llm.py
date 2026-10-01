@@ -52,3 +52,39 @@ def test_complete_retries_transient_errors(monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.setattr("app.integrations.llm.time.sleep", lambda _s: None)
     assert _provider().complete([Message("user", "hi")]) == "ok"
     assert calls["n"] == 2
+
+
+def test_rate_limit_waits_as_asked_then_succeeds(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = {"n": 0}
+    waits: list[float] = []
+
+    def fake_post(url, **kwargs):  # noqa: ANN001, ANN003
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return httpx.Response(429, headers={"retry-after": "7"}, json={"error": {}})
+        if calls["n"] == 2:
+            return httpx.Response(
+                429, json={"error": {"message": "Rate limit reached. Please try again in 1.5s."}}
+            )
+        return httpx.Response(200, json={"choices": [{"message": {"content": "ok"}}]})
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    monkeypatch.setattr("app.integrations.llm.time.sleep", waits.append)
+    assert _provider().complete([Message("user", "hi")]) == "ok"
+    assert waits == [7.5, 2.0]  # provider hint + 0.5s margin
+
+
+def test_rate_limit_retries_are_bounded(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = {"n": 0}
+
+    def fake_post(url, **kwargs):  # noqa: ANN001, ANN003
+        calls["n"] += 1
+        return httpx.Response(429, headers={"retry-after": "999"}, json={"error": {}})
+
+    waits: list[float] = []
+    monkeypatch.setattr(httpx, "post", fake_post)
+    monkeypatch.setattr("app.integrations.llm.time.sleep", waits.append)
+    with pytest.raises(LLMError):
+        _provider().complete([Message("user", "hi")])
+    assert calls["n"] == 7  # 1 + 6 retries
+    assert max(waits) == 30.0  # capped

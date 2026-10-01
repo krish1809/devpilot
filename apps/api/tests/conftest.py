@@ -81,6 +81,8 @@ def _drop_test_database() -> None:
 def _engine() -> Generator:
     _create_test_database()
     engine = create_engine(TEST_DATABASE_URL, pool_pre_ping=True)
+    with engine.begin() as conn:  # pgvector (Phase 6), as the migration does
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
     Base.metadata.create_all(bind=engine)
     # LangGraph checkpoint tables — before any test opens a transaction.
     from app.agents.checkpoint import setup_checkpoint_tables
@@ -152,17 +154,21 @@ def _unconfigured(*args, **kwargs):  # noqa: ANN002, ANN003
 
 @pytest.fixture(autouse=True)
 def agent_deps(_engine, tmp_path):
-    """Agent dependencies for every test: test DB, in-memory checkpoints, and
-    no real LLM/sandbox/publisher unless a test sets them explicitly."""
+    """Agent dependencies for every test: test DB, in-memory checkpoints,
+    retrieval off by default, and no real LLM/sandbox/publisher/embedder unless
+    a test sets them explicitly."""
     from langgraph.checkpoint.memory import InMemorySaver
 
     from app.agents.graph import AgentDeps
     from app.agents.runner import get_agent_deps
+    from app.core.config import get_settings
 
     deps = AgentDeps(
         session_factory=sessionmaker(bind=_engine, autoflush=False),
         checkpointer=InMemorySaver(),
         llm_factory=_unconfigured,
+        embedder_factory=_unconfigured,
+        settings=get_settings().model_copy(update={"rag_enabled": False}),
         sandbox=_unconfigured,
         publisher=_unconfigured,
         workspace_root=tmp_path / "runs",

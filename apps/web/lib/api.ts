@@ -147,8 +147,12 @@ export const api = {
 
   getTask: (id: number) => request<Task>(`/api/v1/tasks/${id}`),
 
-  runTask: (id: number) =>
-    request<AgentRun>(`/api/v1/tasks/${id}/run`, { method: "POST" }),
+  /** Start a run; `useRag` overrides the server default for this run. */
+  runTask: (id: number, useRag?: boolean) =>
+    request<AgentRun>(`/api/v1/tasks/${id}/run`, {
+      method: "POST",
+      body: useRag === undefined ? undefined : { use_rag: useRag },
+    }),
 
   getRun: (id: number) => request<AgentRun>(`/api/v1/runs/${id}`),
 

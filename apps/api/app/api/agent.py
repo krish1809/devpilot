@@ -10,6 +10,7 @@ from app.schemas.agent import (
     CheckpointResponse,
     PullRequestResponse,
     RunEventResponse,
+    RunRequest,
     RunResponse,
     RunSummary,
     TaskCreate,
@@ -78,10 +79,14 @@ def run_task(
     current_user: CurrentUser,
     deps: Deps,
     background_tasks: BackgroundTasks,
+    data: RunRequest | None = None,
 ) -> RunResponse:
     """Start the agent graph in the background; poll ``GET /runs/{id}`` for progress."""
     task = _owned_task(db, task_id, current_user)
-    run = runner.start_run(db, task, deps)
+    try:
+        run = runner.start_run(db, task, deps, use_rag=data.use_rag if data else None)
+    except runner.RunStateError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     background_tasks.add_task(runner.execute_run, run.id, deps)
     return _run_response(db, run)
 

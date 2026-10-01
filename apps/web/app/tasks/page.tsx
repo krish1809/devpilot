@@ -65,7 +65,7 @@ export default function TasksPage() {
         repo_url: form.repo_url.trim(),
         base_commit: form.base_commit.trim() || null,
         test_command: form.test_command.trim(),
-        target_path: form.target_path.trim(),
+        target_path: form.target_path.trim() || null,
         description: form.description.trim() || null,
       });
       setForm({ ...EMPTY });
@@ -125,13 +125,12 @@ export default function TasksPage() {
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <Label htmlFor="target_path">Target file</Label>
+                  <Label htmlFor="target_path">Target file (optional)</Label>
                   <Input
                     id="target_path"
                     value={form.target_path}
                     onChange={(e) => set("target_path", e.target.value)}
-                    placeholder="calculator.py"
-                    required
+                    placeholder="empty = let the agent find it"
                   />
                 </div>
                 <div>
@@ -202,7 +201,7 @@ export default function TasksPage() {
                             )}
                           </p>
                           <p className="truncate font-mono text-xs text-muted-foreground">
-                            {task.target_path} · {task.test_command}
+                            {task.target_path ?? "file: auto"} · {task.test_command}
                           </p>
                         </div>
                         <span className="shrink-0 text-xs text-muted-foreground">

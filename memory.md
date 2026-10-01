@@ -4,8 +4,9 @@
 **Roadmap authority:** [docs/PLAN.md](docs/PLAN.md) (9 phases). Ignore old phase numbers.
 
 **Current position:** Phases 1 ✅, 2 ✅ (walking skeleton, real PR), 3 ✅ (frontend),
-4 ✅ (real GitHub integration — issue #2 → PR #3, merged), 5 ✅ (LangGraph agent).
-**Next: Phase 6 — repository RAG.** SSE streaming still deferred (UI polls).
+4 ✅ (real GitHub integration — issue #2 → PR #3, merged), 5 ✅ (LangGraph agent),
+6 ✅ (repository RAG + file localization). **Next: Phase 7 — SWE-bench Lite.**
+SSE streaming still deferred (UI polls).
 
 > Update this at the end of every session. Fuller tracking: [docs/PROGRESS.md](docs/PROGRESS.md).
 
@@ -15,7 +16,7 @@
 - FastAPI + PostgreSQL + Alembic; Project CRUD (`apps/api/app/...`), `/health`
 - Dedicated `devpilot_test` DB, pytest fixtures, **44 tests passing**; Ruff lint + format clean
 - Docker Compose (Postgres + `migrate` + `api`), Dockerfile, Makefile
-- Migrations chain verified drift-free (`alembic check` clean; current head `b88d25944321`, Phase 5)
+- Migrations chain verified drift-free (`alembic check` clean; current head `cb5554ccaecd`, Phase 6)
 - CORS middleware (so the web app can call the API)
 
 ## ✅ Phase 3 — Frontend + light auth (done)
@@ -43,6 +44,13 @@
 - Migration head `b88d25944321`. Sandbox runs as host uid (root-owned files broke `git clean`).
 - Tests: 103 backend (graph, repair loop, budgets, review guard, cancel, resume-from-checkpoint, approve/reject/stale, HTTP flow, Postgres restart durability). Web: lint + tsc + 9 Vitest + build.
 - Live proof 2026-10-01: task pinned to devpilot-demo@5eec58f → validated in ~12s, 7 checkpoints; killed + restarted uvicorn; new process loaded the paused graph and resumed it (rejected → nothing published).
+
+## ✅ Phase 6 — Repository RAG (done, evaluated)
+- Postgres image is now `devpilot-postgres:17-pgvector` built from `infra/postgres/Dockerfile` (`FROM postgres:17` + pgvector) — ⚠️ don't switch the dev volume to `pgvector/pgvector:pg17` (Debian bookworm, different glibc → collation risk). CI uses that image (fresh DB, fine). Pre-swap backup was taken to the session scratchpad.
+- `app/rag/` (chunking, embeddings, index). fastembed `BAAI/bge-small-en-v1.5` (384-d, local, downloads ~67MB once). Hybrid retrieval: exact cosine + FTS → RRF; traceback boost; files ranked by best chunk.
+- Graph: `retrieve` node; `target_path` optional → planner localizes (`TARGET:` line), server validates (tracked + indexable) else falls back. Per-run `use_rag`; RAG off + no target = file-list baseline.
+- LLM client retries 429 per Retry-After (cap 30s × 6). Groq free tier = 8k TPM — evals must be paced.
+- Migration head `cb5554ccaecd`. Tests 137. Eval: `python -m scripts.rag_eval --owner smoke-phase4@example.com` → `docs/eval/phase6-rag.md` (root-cause localization RAG 5/5 vs no-RAG 2/5; both resolve 5/5).
 
 ## 🟡 Phase 9 — Deploy + polish (seed only)
 - GitHub Actions CI (`.github/workflows/ci.yml`) — backend ruff+migrations+pytest and frontend lint+vitest+build. CI workflow (`2d14c97`) is on origin. Deploy (Vercel/Render/Neon) + demo README not done.

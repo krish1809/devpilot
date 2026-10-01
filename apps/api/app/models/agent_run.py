@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -54,6 +55,15 @@ class AgentRun(Base):
     cancel_requested: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )
+
+    # Repository RAG (Phase 6): whether retrieval was used, the file the run
+    # edited (given by the task or localized by the planner), and what was
+    # retrieved (index stats, candidate files, context chunks) for inspection.
+    use_rag: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    target_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    retrieval: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     diff: Mapped[str | None] = mapped_column(Text, nullable=True)
     test_passed: Mapped[bool | None] = mapped_column(Boolean, nullable=True)

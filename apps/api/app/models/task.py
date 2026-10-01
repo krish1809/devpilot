@@ -33,8 +33,9 @@ class Task(Base):
 
     # The command that runs the failing test inside the sandbox.
     test_command: Mapped[str] = mapped_column(String(500), nullable=False)
-    # The file the agent is allowed to edit / that is sent to the LLM.
-    target_path: Mapped[str] = mapped_column(String(500), nullable=False)
+    # The file the agent may edit. Optional since Phase 6: when empty, the
+    # planner localizes it from retrieved repository context.
+    target_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 

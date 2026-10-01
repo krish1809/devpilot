@@ -56,15 +56,18 @@ All endpoints require authentication and are owner-scoped.
 | POST | `/api/v1/tasks/from-issue` | Import an **open** GitHub issue (`repo_full_name`, `issue_number`, `base_branch?`, `target_path`, `test_command`); resolves the branch to a commit SHA and pins the task to it; verifies `target_path` exists at that SHA; `201`/`404`/`422` |
 | GET | `/api/v1/tasks` | List caller's tasks; `200` |
 | GET | `/api/v1/tasks/{id}` | Get a task; `200`/`404` |
-| POST | `/api/v1/tasks/{id}/run` | Start the LangGraph agent **in the background**; `202` with the new run (`status: running`). Poll `GET /runs/{id}` |
+| POST | `/api/v1/tasks/{id}/run` | Start the LangGraph agent **in the background**; optional body `{use_rag?: bool}` (default `RAG_ENABLED`); `202` with the new run (`status: running`). Poll `GET /runs/{id}` |
 | GET | `/api/v1/tasks/{id}/runs` | The task's runs, newest first (`id`, `status`, `attempts`, `test_passed`, …) |
-| GET | `/api/v1/runs/{id}` | A run: `status`, `plan`, `attempts`, `llm_calls`, `prompt_tokens`, `completion_tokens`, `diff`, `sandbox_output`, `events`, `pull_request`; `200`/`404` |
+| GET | `/api/v1/runs/{id}` | A run: `status`, `plan`, `target_path` (given or localized), `use_rag`, `retrieval` (index stats, candidate files, retrieved chunk locations), `attempts`, `llm_calls`, `prompt_tokens`, `completion_tokens`, `diff`, `sandbox_output`, `events`, `pull_request`; `200`/`404` |
 | GET | `/api/v1/runs/{id}/checkpoints` | Every persisted graph step (oldest first): `step`, `next` node(s), `attempts`, `llm_calls`, `waiting_for_approval` |
 | POST | `/api/v1/runs/{id}/cancel` | Request cancellation of a `running` run (stops at the next node boundary → `cancelled`); `409` otherwise |
 | POST | `/api/v1/runs/{id}/resume` | Continue an `error`/`cancelled`/abandoned run from its last checkpoint (`202`, background); `409` otherwise |
 | POST | `/api/v1/runs/{id}/approve` | `{decision: "approved"\|"rejected", base_branch?}`. Resumes the graph paused at `human_approval`. Approving a **validated** run publishes a PR against the task's base branch (override with `base_branch`); `409` if not validated. The approval records the diff's SHA-256 + base commit, and publishing refuses if the diff changed (stale approval). Failed runs can still be rejected |
 
-`target_path` must be a relative path inside the repo (no `..`, absolute paths, or `.git/`);
+`target_path` is optional (Phase 6): when omitted, the planner localizes the file — from
+retrieved candidates with RAG on, or from the plain file list with RAG off — and the
+server only accepts a tracked, indexable text file. When given, it must be a relative
+path inside the repo (no `..`, absolute paths, or `.git/`);
 branch names are validated so they can't be read as git options.
 
 ## GitHub (Phase 4)

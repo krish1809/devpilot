@@ -73,7 +73,7 @@ export function ImportFromIssue({ onCreated }: { onCreated: (task: Task) => void
         repo_full_name: repo,
         issue_number: issueNumber,
         base_branch: tree.ref,
-        target_path: targetPath.trim(),
+        target_path: targetPath.trim() || null,
         test_command: testCommand.trim(),
       });
       onCreated(task);
@@ -168,14 +168,13 @@ export function ImportFromIssue({ onCreated }: { onCreated: (task: Task) => void
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <Label htmlFor="gh_target">File to fix</Label>
+                    <Label htmlFor="gh_target">File to fix (optional)</Label>
                     <Input
                       id="gh_target"
                       list="gh_files"
                       value={targetPath}
                       onChange={(e) => setTargetPath(e.target.value)}
-                      placeholder="path/to/file.py"
-                      required
+                      placeholder="empty = let the agent find it"
                     />
                     <datalist id="gh_files">
                       {tree.files.map((f) => (

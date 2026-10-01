@@ -28,6 +28,7 @@ from app.integrations.github_api import GitHubError
 from app.integrations.llm import LLMError
 from app.models.agent_run import AgentRun, Approval, RunStatus
 from app.models.task import Task
+from app.rag.embeddings import EmbeddingError
 
 logger = logging.getLogger(__name__)
 
@@ -56,9 +57,16 @@ def thread_config(run_id: int) -> dict:
     return {"configurable": {"thread_id": f"run-{run_id}"}, "recursion_limit": _RECURSION_LIMIT}
 
 
-def start_run(db: Session, task: Task, deps: AgentDeps) -> AgentRun:
+def start_run(db: Session, task: Task, deps: AgentDeps, *, use_rag: bool | None = None) -> AgentRun:
     """Create a run row; the graph is executed separately (``execute_run``)."""
-    run = AgentRun(task_id=task.id, status=RunStatus.RUNNING, model=deps.settings.llm_model)
+    use_rag = deps.settings.rag_enabled if use_rag is None else use_rag
+    run = AgentRun(
+        task_id=task.id,
+        status=RunStatus.RUNNING,
+        model=deps.settings.llm_model,
+        use_rag=use_rag,
+        target_path=task.target_path or None,
+    )
     db.add(run)
     db.commit()
     db.refresh(run)
@@ -74,9 +82,10 @@ def _initial_state(deps: AgentDeps, run_id: int) -> AgentState:
             "run_id": run_id,
             "repo_url": task.repo_url,
             "base_commit": task.base_commit,
-            "target_path": task.target_path,
+            "target_path": task.target_path or None,
             "test_command": task.test_command,
-            "issue": task.description if task.issue_number else None,
+            "issue": task.description or None,  # untrusted context (issue text / notes)
+            "use_rag": run.use_rag,
             "attempts": 0,
             "llm_calls": 0,
             "prompt_tokens": 0,
@@ -112,7 +121,7 @@ def execute_run(run_id: int, deps: AgentDeps, command: Command | None = None) ->
             graph.invoke(_initial_state(deps, run_id), config)
     except RunCancelled as exc:
         _finish_with(deps, run_id, RunStatus.CANCELLED, str(exc), "cancel")
-    except (RunAborted, GitError, GitHubError, LLMError, OSError) as exc:
+    except (RunAborted, GitError, GitHubError, LLMError, EmbeddingError, OSError) as exc:
         _finish_with(deps, run_id, RunStatus.ERROR, str(exc), "error")
     except Exception:  # background job: never leave a run stuck in "running"
         logger.exception("Unexpected agent error in run %s", run_id)
@@ -121,9 +130,11 @@ def execute_run(run_id: int, deps: AgentDeps, command: Command | None = None) ->
         shutil.rmtree(deps.workspace(run_id), ignore_errors=True)
 
 
-def run_to_completion(db: Session, task: Task, deps: AgentDeps) -> AgentRun:
+def run_to_completion(
+    db: Session, task: Task, deps: AgentDeps, *, use_rag: bool | None = None
+) -> AgentRun:
     """Start and execute a run synchronously (scripts, evaluation, tests)."""
-    run = start_run(db, task, deps)
+    run = start_run(db, task, deps, use_rag=use_rag)
     execute_run(run.id, deps)
     db.refresh(run)
     return run

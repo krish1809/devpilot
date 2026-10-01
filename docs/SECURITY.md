@@ -23,6 +23,7 @@ Before running repository code, use a disposable isolated environment with CPU, 
 Require explicit approval before publishing a branch/PR. Bind approval to the exact diff/artifact hash and base commit; invalidate it if the artifact changes. Record approver, decision, and timestamp.
 
 ## Data protection
+Repository indexing (Phase 6) only reads git-tracked text files at the pinned commit; it skips vendored/generated directories, lockfiles, minified assets, binaries, files over 200 KB, key/credential files (`.env*`, `*.pem`, `id_rsa*`, …) and any file containing a private key, and redacts token-like strings (GitHub/AWS/OpenAI/Groq/Slack/Google keys, `password = "…"`) before chunks are embedded or shown to the model. A model-chosen target file must pass the same policy.
 Minimize retained source and logs. Scope retrieval by user/repository/commit. Define retention/deletion. Avoid logging full source, prompts, or diffs by default. Prevent cross-user retrieval.
 
 ## Production checklist

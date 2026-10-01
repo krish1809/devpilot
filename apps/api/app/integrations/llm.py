@@ -7,6 +7,7 @@ API, so this is a thin client over `POST {base_url}/chat/completions`.
 
 from __future__ import annotations
 
+import re
 import time
 from dataclasses import dataclass
 from typing import Protocol
@@ -15,8 +16,30 @@ import httpx
 
 from app.core.config import get_settings
 
-_MAX_ATTEMPTS = 3
+_MAX_ATTEMPTS = 3  # network errors / 5xx
 _BACKOFF_SECONDS = 1.5
+_MAX_RATE_LIMIT_RETRIES = 6  # 429s (free tiers have tight tokens-per-minute limits)
+_MAX_RATE_LIMIT_WAIT = 30.0
+_TRY_AGAIN_RE = re.compile(r"try again in ([0-9.]+)\s*(ms|s)", re.IGNORECASE)
+
+
+def _rate_limit_wait(response: httpx.Response, retry: int) -> float:
+    """Seconds to wait before retrying a 429: Retry-After, else the provider's
+    "try again in Xs" hint, else exponential backoff — always capped."""
+    wait = None
+    header = response.headers.get("retry-after")
+    if header:
+        try:
+            wait = float(header)
+        except ValueError:
+            wait = None
+    if wait is None:
+        m = _TRY_AGAIN_RE.search(response.text)
+        if m:
+            wait = float(m.group(1)) / (1000 if m.group(2).lower() == "ms" else 1)
+    if wait is None:
+        wait = _BACKOFF_SECONDS * (2**retry)
+    return min(max(wait, 0.5) + 0.5, _MAX_RATE_LIMIT_WAIT)
 
 
 @dataclass
@@ -64,11 +87,15 @@ class GroqProvider:
         }
         headers = {"Authorization": f"Bearer {self._api_key}"}
 
-        # Bounded retries for transient network/5xx errors; never retry a 4xx
-        # (bad key/model/request) since it will not recover.
+        # Bounded retries: transient network/5xx errors, and 429 rate limits
+        # (waiting as long as the provider asks, capped). Other 4xx (bad
+        # key/model/request) are never retried since they will not recover.
         last_exc: Exception | None = None
         response: httpx.Response | None = None
-        for attempt in range(1, _MAX_ATTEMPTS + 1):
+        attempt = 0
+        rate_limited = 0
+        while True:
+            attempt += 1
             try:
                 response = httpx.post(
                     f"{self._base_url}/chat/completions",
@@ -83,6 +110,11 @@ class GroqProvider:
                     continue
                 raise LLMError(f"LLM request failed after {attempt} attempts: {exc}") from exc
 
+            if response.status_code == 429 and rate_limited < _MAX_RATE_LIMIT_RETRIES:
+                time.sleep(_rate_limit_wait(response, rate_limited))
+                rate_limited += 1
+                attempt -= 1  # rate limits don't consume transient-error attempts
+                continue
             if response.status_code >= 500 and attempt < _MAX_ATTEMPTS:
                 time.sleep(_BACKOFF_SECONDS * attempt)
                 continue

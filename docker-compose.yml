@@ -1,6 +1,8 @@
 services:
   postgres:
-    image: postgres:17
+    # postgres:17 + pgvector (Phase 6). See infra/postgres/Dockerfile.
+    build: ./infra/postgres
+    image: devpilot-postgres:17-pgvector
     container_name: devpilot-postgres
     restart: unless-stopped
     environment:

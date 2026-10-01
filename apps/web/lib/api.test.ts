@@ -93,3 +93,15 @@ describe("agent run lifecycle client", () => {
     expect(calls[0][0]).toMatch(/\/api\/v1\/tasks\/7\/runs$/);
   });
 });
+
+describe("run options", () => {
+  it("sends use_rag only when specified", async () => {
+    const fetchMock = mockFetch(202, {});
+    globalThis.fetch = fetchMock;
+    await api.runTask(3);
+    await api.runTask(3, false);
+    const calls = fetchMock.mock.calls as unknown as [string, RequestInit][];
+    expect(calls[0][1].body).toBeUndefined();
+    expect(JSON.parse(calls[1][1].body as string)).toEqual({ use_rag: false });
+  });
+});
