@@ -55,9 +55,11 @@ export function Nav() {
                 Log in
               </Button>
             </Link>
-            <Link href="/register">
-              <Button size="sm">Sign up</Button>
-            </Link>
+            {!demoMode && (
+              <Link href="/register">
+                <Button size="sm">Sign up</Button>
+              </Link>
+            )}
           </div>
         )}
       </div>
