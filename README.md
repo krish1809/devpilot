@@ -163,5 +163,5 @@ Public deployment is a read-only showcase (`DEMO_MODE=true`) — see [docs/DEPLO
 
 ## Documentation
 
-[Plan & phases](docs/PLAN.md) · [Progress](docs/PROGRESS.md) · [API](docs/API.md) ·
+[Walkthrough (how it all works)](docs/WALKTHROUGH.md) · [Plan & phases](docs/PLAN.md) · [Progress](docs/PROGRESS.md) · [API](docs/API.md) ·
 [Security](docs/SECURITY.md) · [Evaluation](docs/eval/README.md) · [Deploy](docs/DEPLOY.md)
