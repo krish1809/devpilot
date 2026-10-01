@@ -23,8 +23,8 @@ Phase 9 has a CI seed only.
 | 4 | Real GitHub integration | ✅ Done | List repos/issues/tree, import issue → task pinned to (repo, branch, SHA), PR via REST with `Fixes #N`; 91 backend tests. Proven live: devpilot-demo issue #2 → PR #3 |
 | 5 | LangGraph agent | ✅ Done | Graph + Postgres checkpoints + interrupt-based approval, background runs, cancel/resume, budgets; 103 backend tests; proven live incl. resume across a server restart |
 | 6 | Repository RAG | ✅ Done | pgvector + FTS hybrid retrieval, file localization; smoke eval: root-cause localization 5/5 with RAG vs 2/5 without ([eval/phase6-rag.md](eval/phase6-rag.md)) |
-| 7 | Evaluation on SWE-bench Lite | 🟡 In progress | Harness + official scoring + results UI built; 20-instance seeded run in progress ([eval/README.md](eval/README.md)) |
-| 8 | One MCP server + Langfuse | ⬜ Not started | + prompt-injection refusal test |
+| 7 | Evaluation on SWE-bench Lite | 🟡 Running | Harness + official scoring + results UI built; v2 20-instance seeded run in progress unattended (Groq: 200k tokens/day), v1 kept as ablation ([eval/README.md](eval/README.md)) |
+| 8 | One MCP server + observability | ✅ Done | `devpilot-tools` MCP server (per-run binding, permission policy, audit log; the agent's sandbox runs go through it), LLM/tool-call tracing + UI, prompt-injection tests, risky-change warnings. Langfuse skipped (disk); built-in tracing instead |
 | 9 | Deploy + portfolio polish | 🟡 Seed | CI workflow on origin; deploy + demo README pending |
 
 ## Backend detail (Phase 1)

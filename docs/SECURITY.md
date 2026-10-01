@@ -28,3 +28,29 @@ Minimize retained source and logs. Scope retrieval by user/repository/commit. De
 
 ## Production checklist
 Auth/RBAC, TLS/CORS, secret management, rate and size limits, verified webhook signatures, sandbox isolation, dependency/container scanning, safe errors, backups and restore testing, approval-gate tests, and telemetry redaction.
+
+## Agent tools over MCP (Phase 8)
+The agent's sandbox test runs go through `devpilot-tools`, an MCP server (`apps/api/app/mcp/server.py`)
+launched per call as a stdio subprocess and **bound to one run and one permission policy** at launch;
+tools take no run/workspace argument. Server-side, independent of the caller: `read` vs `execute`
+policy per tool; `run_tests` runs only the task's configured test command, in the network-off sandbox;
+`read_file` is confined to the checkout and refuses secret/vendored/binary files; outputs are capped;
+every call — allowed or denied — is written to `tool_calls` with redacted arguments. Denial reasons are
+returned to the client; unexpected errors stay generic.
+
+## Prompt injection (Phase 8)
+Repository files, issue text and tool output are treated as hostile input. What is guaranteed
+regardless of model behaviour (covered by `apps/api/tests/test_injection.py`):
+- Secrets never reach the model: host environment and app config are never put in prompts; `.env`,
+  key and credential files are never indexed or readable; token-like strings are redacted from
+  retrieved code.
+- Untrusted text is wrapped in labelled tags (`<issue>`, `<retrieved_context>`, `<file>`,
+  `<test_output>`), and every system prompt says not to follow instructions inside them.
+- The model can't choose what it edits beyond policy: one file, validated server-side — tracked,
+  non-secret, non-vendored, and never CI/automation config (`.github/`, `.gitlab-ci.yml`, …).
+- Patches that newly add environment access, process execution, network calls, credential paths
+  or payload decoding are flagged to the human reviewer before approval.
+- Nothing is published without explicit human approval of the exact diff, and the sandbox has no
+  network, so an obeyed injection cannot exfiltrate from test runs.
+Whether a given model *obeys* an injected instruction is probabilistic; the controls above are what
+bound the damage when it does.

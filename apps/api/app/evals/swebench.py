@@ -88,6 +88,7 @@ def scrub(text: str | None) -> str | None:
 
 
 _MAX_HARNESS_ERRORS = 3
+_RETRY_PAUSE_SECONDS = 20
 
 
 class QuotaExhausted(Exception):
@@ -319,54 +320,66 @@ def score(
                 r.scored_at = datetime.now(UTC)
                 db.commit()
                 continue
-            model = f"devpilot-{r.config}"
-            run_id = _harness_run_id(eval_run, r.config)
-            preds = workdir / f"{run_id}.{instance_id}.jsonl"
-            preds.write_text(json.dumps(
-                {"instance_id": instance_id, "model_name_or_path": model, "model_patch": r.patch}
-            ) + "\n")  # fmt: skip
-            proc = subprocess.run(
-                [str(SWEBENCH_PY), "-m", "swebench.harness.run_evaluation",
-                 "-d", DATASET, "-s", "test", "-i", instance_id, "-p", str(preds),
-                 "--max_workers", "1", "-t", str(timeout), "-id", run_id,
-                 "--report_dir", str(workdir)],
-                cwd=workdir, capture_output=True, text=True, timeout=timeout + 1200,
-            )  # fmt: skip
-            report = workdir / "logs" / "run_evaluation" / run_id / model / instance_id
-            report = report / "report.json"
-            run_report = workdir / f"{model}.{run_id}.json"
-            reasons = {}
-            if run_report.exists():
-                reasons = json.loads(run_report.read_text()).get("failure_reasons") or {}
-            if report.exists():
-                detail = json.loads(report.read_text()).get(instance_id, {})
-                r.resolved = bool(detail.get("resolved"))
-                r.score_detail = {
-                    "patch_applied": detail.get("patch_successfully_applied"),
-                    "tests_status": _summarize_tests(detail.get("tests_status") or {}),
-                    "infra_failure": reasons.get(instance_id),
-                }
-            else:
-                # The harness itself failed (e.g. Docker Hub couldn't serve the image):
-                # not a verdict on the patch. Retry on the next pass; only after
-                # repeated failures record it as an infra failure (unresolved).
-                attempts = (r.score_detail or {}).get("harness_errors", 0) + 1
-                r.score_detail = {
-                    "harness_errors": attempts,
-                    "stderr": scrub(proc.stderr[-1500:]),
-                    **({"infra_failure": "harness_error"} if attempts >= _MAX_HARNESS_ERRORS
-                       else {}),
-                }  # fmt: skip
-                if attempts < _MAX_HARNESS_ERRORS:
-                    db.commit()
-                    log(f"{instance_id} [{r.config}] harness error #{attempts}; will retry")
-                    continue
-                r.resolved = False
-            r.scored_at = datetime.now(UTC)
-            db.commit()
+            for _ in range(_MAX_HARNESS_ERRORS):
+                if _score_one(db, eval_run, r, workdir=workdir, timeout=timeout):
+                    break
+                log(f"{instance_id} [{r.config}] harness error; retrying")
+                time.sleep(_RETRY_PAUSE_SECONDS)
             log(f"{instance_id} [{r.config}] resolved={r.resolved}")
         if remove_images:
             _remove_instance_images(instance_id)
+
+
+def _score_one(
+    db: Session, eval_run: EvalRun, r: EvalResult, *, workdir: Path, timeout: int
+) -> bool:
+    """Run the official harness on one result. True once it has a verdict."""
+    instance_id = r.instance_id
+    model = f"devpilot-{r.config}"
+    run_id = _harness_run_id(eval_run, r.config)
+    preds = workdir / f"{run_id}.{instance_id}.jsonl"
+    preds.write_text(json.dumps(
+        {"instance_id": instance_id, "model_name_or_path": model, "model_patch": r.patch}
+    ) + "\n")  # fmt: skip
+    proc = subprocess.run(
+        [str(SWEBENCH_PY), "-m", "swebench.harness.run_evaluation",
+         "-d", DATASET, "-s", "test", "-i", instance_id, "-p", str(preds),
+         "--max_workers", "1", "-t", str(timeout), "-id", run_id,
+         "--report_dir", str(workdir)],
+        cwd=workdir, capture_output=True, text=True, timeout=timeout + 1200,
+    )  # fmt: skip
+    report = workdir / "logs" / "run_evaluation" / run_id / model / instance_id
+    report = report / "report.json"
+    run_report = workdir / f"{model}.{run_id}.json"
+    reasons = {}
+    if run_report.exists():
+        reasons = json.loads(run_report.read_text()).get("failure_reasons") or {}
+    if report.exists():
+        detail = json.loads(report.read_text()).get(instance_id, {})
+        r.resolved = bool(detail.get("resolved"))
+        r.score_detail = {
+            "patch_applied": detail.get("patch_successfully_applied"),
+            "tests_status": _summarize_tests(detail.get("tests_status") or {}),
+            "infra_failure": reasons.get(instance_id),
+        }
+    else:
+        # The harness itself failed (e.g. Docker Hub couldn't serve the image):
+        # not a verdict on the patch. The caller retries; only after repeated
+        # failures is it recorded as an infra failure (unresolved).
+        attempts = (r.score_detail or {}).get("harness_errors", 0) + 1
+        r.score_detail = {
+            "harness_errors": attempts,
+            "stderr": scrub(proc.stderr[-1500:]),
+            **({"infra_failure": "harness_error"} if attempts >= _MAX_HARNESS_ERRORS
+               else {}),
+        }  # fmt: skip
+        if attempts < _MAX_HARNESS_ERRORS:
+            db.commit()
+            return False
+        r.resolved = False
+    r.scored_at = datetime.now(UTC)
+    db.commit()
+    return True
 
 
 def _summarize_tests(status: dict) -> dict:

@@ -138,25 +138,51 @@ def test_eval_endpoints(client: TestClient, db_session: Session, auth_headers: d
     assert client.get("/api/v1/evals/999", headers=auth_headers).status_code == 404
 
 
-def test_harness_errors_are_retried_not_scored(
-    tmp_path: Path, db_session: Session, monkeypatch
-) -> None:
-    run = sb.get_or_create_run(db_session, "h", [], ["rag"], {})
+def _queue_one(db_session: Session, name: str) -> object:
+    run = sb.get_or_create_run(db_session, name, [], ["rag"], {})
     db_session.add(EvalResult(eval_run_id=run.id, instance_id="a__a-1", repo="x/y",
                               config="rag", status="validated", patch=PATCH))  # fmt: skip
     db_session.commit()
+    return run
 
+
+def _fake_harness_env(tmp_path: Path, monkeypatch, outcomes: list[bool]) -> None:  # noqa: ANN001
+    """Each harness call either writes a resolved report (True) or fails (False)."""
     monkeypatch.setattr(sb, "SWEBENCH_PY", tmp_path / "python")
     (tmp_path / "python").write_text("")
-    failed = type("P", (), {"stderr": "Image not found for org_ABC123", "returncode": 1})
-    # no report.json produced: e.g. the image couldn't be pulled
-    monkeypatch.setattr(sb.subprocess, "run", lambda *a, **k: failed())
     monkeypatch.setattr(sb, "_remove_instance_images", lambda iid: None)
+    monkeypatch.setattr(sb, "_RETRY_PAUSE_SECONDS", 0)
 
-    for expected in (None, None, False):
-        sb.score(db_session, run, workdir=tmp_path / "w", log=lambda m: None)
-        db_session.expire_all()
-        r = db_session.query(EvalResult).one()
-        assert r.resolved is expected
-    assert r.score_detail["infra_failure"] == "harness_error"
+    def harness(cmd, cwd, **kwargs):  # noqa: ANN001, ANN003
+        if outcomes.pop(0):
+            iid, run_id = cmd[cmd.index("-i") + 1], cmd[cmd.index("-id") + 1]
+            out = Path(cwd) / "logs" / "run_evaluation" / run_id / "devpilot-rag" / iid
+            out.mkdir(parents=True, exist_ok=True)
+            (out / "report.json").write_text(json.dumps({iid: {"resolved": True}}))
+            return type("P", (), {"stderr": "", "returncode": 0})()
+        # no report.json: e.g. the image pull was reset by the network
+        return type("P", (), {"stderr": "connection reset; org_ABC123", "returncode": 1})()
+
+    monkeypatch.setattr(sb.subprocess, "run", harness)
+
+
+def test_transient_harness_errors_are_retried_immediately(
+    tmp_path: Path, db_session: Session, monkeypatch
+) -> None:
+    run = _queue_one(db_session, "t")
+    _fake_harness_env(tmp_path, monkeypatch, [False, True])
+    sb.score(db_session, run, workdir=tmp_path / "w", log=lambda m: None)
+    db_session.expire_all()
+    assert db_session.query(EvalResult).one().resolved is True
+
+
+def test_persistent_harness_errors_become_infra_failures(
+    tmp_path: Path, db_session: Session, monkeypatch
+) -> None:
+    run = _queue_one(db_session, "p")
+    _fake_harness_env(tmp_path, monkeypatch, [False, False, False])
+    sb.score(db_session, run, workdir=tmp_path / "w", log=lambda m: None)
+    db_session.expire_all()
+    r = db_session.query(EvalResult).one()
+    assert r.resolved is False and r.score_detail["infra_failure"] == "harness_error"
     assert "org_ABC123" not in r.score_detail["stderr"]

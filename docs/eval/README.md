@@ -32,6 +32,11 @@ Two evaluations live here:
   - `oracle-file+rag` — oracle file plus retrieved cross-file context.
   - `gold` (optional, `score --with-gold`) — the reference patches themselves, to calibrate
     the environment: the best score achievable on this machine.
+- **Versions:** `lite-s20-seed7-v1-nogate` is the first 6 instances with the agent *before* the
+  Python syntax gate (patches that broke indentation were scored as failures without any test
+  running); it is kept as an ablation. `lite-s20-seed7` is the headline run with the gate.
+- **Unattended:** `run-all` loops generate → score → report, sleeping while the LLM's daily
+  token quota (200k tokens/day on Groq's free tier) refills; the report is rewritten after each pass.
 - **Uncertainty:** resolve rates are reported with a 95% Wilson interval. With n = 20 the
   interval is wide (±15–20 points); read differences between configs accordingly.
 

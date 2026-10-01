@@ -5,8 +5,9 @@
 
 **Current position:** Phases 1 ✅, 2 ✅ (walking skeleton, real PR), 3 ✅ (frontend),
 4 ✅ (real GitHub integration — issue #2 → PR #3, merged), 5 ✅ (LangGraph agent),
-6 ✅ (repository RAG + file localization), 7 🟡 (SWE-bench Lite harness built;
-benchmark run `lite-s20-seed7` in progress — see Phase 7 below). SSE streaming still deferred.
+6 ✅ (repository RAG + file localization), 7 🟡 (harness done; v2 benchmark running
+unattended over ~3 days of LLM quota), 8 ✅ in code (MCP server, tracing, injection defenses).
+**Next: Phase 9 — deploy (showcase mode) + README/demo.** SSE streaming still deferred.
 
 > Update this at the end of every session. Fuller tracking: [docs/PROGRESS.md](docs/PROGRESS.md).
 
@@ -16,7 +17,7 @@ benchmark run `lite-s20-seed7` in progress — see Phase 7 below). SSE streaming
 - FastAPI + PostgreSQL + Alembic; Project CRUD (`apps/api/app/...`), `/health`
 - Dedicated `devpilot_test` DB, pytest fixtures, **44 tests passing**; Ruff lint + format clean
 - Docker Compose (Postgres + `migrate` + `api`), Dockerfile, Makefile
-- Migrations chain verified drift-free (`alembic check` clean; current head `bcc6ef434d5e`, Phase 7)
+- Migrations chain verified drift-free (`alembic check` clean; current head `b04f052d3d3e`, Phase 8)
 - CORS middleware (so the web app can call the API)
 
 ## ✅ Phase 3 — Frontend + light auth (done)
@@ -57,11 +58,19 @@ benchmark run `lite-s20-seed7` in progress — see Phase 7 below). SSE streaming
 - Configs: `rag` (headline, issue only), `oracle-file`, `oracle-file+rag`, optional `gold` calibration. Agent never sees tests (no test command).
 - Agent changes for real repos: excerpts + SEARCH/REPLACE edits for files > 12k chars (diff-hunk fallback; fuzzy only ≥3 lines & unique), prompt budgets, optional test command, lazy embeddings for repos > 3k chunks, IDF keyword filter, source-first candidates, daily-quota 429 stops immediately.
 - Constraints: Groq free tier = 8k TPM / 1k RPD (only gpt-oss-120b/20b + qwen available); CPU embeddings ~12 chunks/s; disk ~9 GB free → scorer deletes each instance image (~3.8 GB). `requests` tests hit live network → harness may flag `network_unreachable` infra failures.
-- In progress (2026-10-01): `generate --name lite-s20-seed7 --n 20 --seed 7` (60 runs). Then `score --name lite-s20-seed7 --with-gold`, then `report` → `docs/eval/phase7-lite-s20-seed7.md`. Both steps are resumable; re-run the same command to continue.
-- ⚠️ Kill the generator with `pkill -f "[p]ython -u -m scripts.swebench_eval"` — an unbracketed pattern also kills your own shell.
+- **Groq daily cap: 200k tokens/day (rolling) for gpt-oss-120b** — ≈7 instances × 3 configs per day.
+- Runs (2026-10-01): `lite-s20-seed7-v1-nogate` = first 6 instances with the pre-syntax-gate agent (kept as an ablation). `lite-s20-seed7` = **v2 headline** (syntax gate on). An unattended loop runs `score v1 → report v1 → run-all v2 --with-gold` (log: `~/.cache/devpilot/swebench/run-all.log`); it sleeps 30 min between quota windows and rewrites `docs/eval/phase7-*.md` after every pass. If the machine restarts, re-run: `python -m scripts.swebench_eval run-all --name lite-s20-seed7 --n 20 --seed 7 --owner smoke-phase4@example.com --with-gold`.
+- Scoring lessons: harness `patch_successfully_applied=false` can mean the patched file didn't import (we saw IndentationError) → hence the syntax gate; "Image not found" was a transient Docker Hub failure → scorer now retries harness errors (3×) instead of scoring them.
+- ⚠️ Kill the loop with `pkill -f "[p]ython -u -m scripts.swebench_eval"` — an unbracketed pattern also kills your own shell.
+
+## ✅ Phase 8 — MCP server + observability + injection defenses (done in code)
+- `app/mcp/server.py`: `devpilot-tools` (MCP SDK **2.x** — `MCPServer`, not FastMCP), bound per process to one run + policy (`read`/`execute`). Tools: `run_tests` (only the task's configured command, in the sandbox), `git_diff`, `read_file` (confined, secrets refused), `search_code`. Denials are `ToolError`s (reason reaches client; crashes stay generic). Every call → `tool_calls` audit (redacted args). `app/mcp/client.py`: stdio subprocess in production (`AgentDeps.tool_server=stdio_target`), in-process in tests. The agent's sandbox runs go through it.
+- Tracing: `llm_calls` table (node, tokens, latency, ok/error) + `GET /runs/{id}/trace`; web trace panel. No Langfuse (self-host too heavy for the disk; built-in tracing instead).
+- Injection: `tests/test_injection.py` (secrets never in prompts, injected text confined to untrusted tags, protected CI/secret paths, sandbox has no network); `agents/risk.py` review warnings above Approve; syntax gate in `_code`.
+- Tests: 183 backend, 17 web. Migration head `b04f052d3d3e`.
 
 ## 🟡 Phase 9 — Deploy + polish (seed only)
-- GitHub Actions CI (`.github/workflows/ci.yml`) — backend ruff+migrations+pytest and frontend lint+vitest+build. CI workflow (`2d14c97`) is on origin. Deploy (Vercel/Render/Neon) + demo README not done.
+- GitHub Actions CI (`.github/workflows/ci.yml`) — backend ruff+migrations+pytest and frontend lint+vitest+build. Was red from Phase 4 until 2026-10-01 (setuptools flat-layout error on `pip install -e .`); fixed — **check `gh run list` after every push**. Deploy (Vercel/Render/Neon) + demo README not done.
 
 ## Built beyond the plan's minimal scope (kept, harmless)
 - Per-owner project scoping (`owner_id`), auth rate limiting, audit log (`audit_logs`, `/audit/me`). Plan keeps auth minimal and puts audit in Phase 8; these are ahead of schedule and reusable. Kept to avoid churn.

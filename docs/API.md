@@ -59,6 +59,7 @@ All endpoints require authentication and are owner-scoped.
 | POST | `/api/v1/tasks/{id}/run` | Start the LangGraph agent **in the background**; optional body `{use_rag?: bool}` (default `RAG_ENABLED`); `202` with the new run (`status: running`). Poll `GET /runs/{id}` |
 | GET | `/api/v1/tasks/{id}/runs` | The task's runs, newest first (`id`, `status`, `attempts`, `test_passed`, …) |
 | GET | `/api/v1/runs/{id}` | A run: `status`, `plan`, `target_path` (given or localized), `use_rag`, `retrieval` (index stats, candidate files, retrieved chunk locations), `attempts`, `llm_calls`, `prompt_tokens`, `completion_tokens`, `diff`, `sandbox_output`, `events`, `pull_request`; `200`/`404` |
+| GET | `/api/v1/runs/{id}/trace` | Every LLM call (node, model, prompt/completion tokens, latency, ok/error — no prompt text) and every audited MCP tool call (tool, redacted arguments, allowed/denied, outcome, latency); plus totals |
 | GET | `/api/v1/runs/{id}/checkpoints` | Every persisted graph step (oldest first): `step`, `next` node(s), `attempts`, `llm_calls`, `waiting_for_approval` |
 | POST | `/api/v1/runs/{id}/cancel` | Request cancellation of a `running` run (stops at the next node boundary → `cancelled`); `409` otherwise |
 | POST | `/api/v1/runs/{id}/resume` | Continue an `error`/`cancelled`/abandoned run from its last checkpoint (`202`, background); `409` otherwise |
@@ -70,6 +71,14 @@ server only accepts a tracked, indexable text file. When given, it must be a rel
 path inside the repo (no `..`, absolute paths, or `.git/`);
 branch names are validated so they can't be read as git options.
 
+## Benchmarks (Phase 7)
+Read-only, any authenticated user. Written by `python -m scripts.swebench_eval`.
+
+| Method | Path | Behavior |
+|---|---|---|
+| GET | `/api/v1/evals` | Benchmark runs, newest first, with per-config summaries (resolved/scored, resolve rate + 95% Wilson CI, infra failures, patches produced, gold-file localization, avg tokens/LLM calls/time) |
+| GET | `/api/v1/evals/{id}` | One run: summary plus every (instance, config) result including the patch and the harness's test-status counts |
+
 ## GitHub (Phase 4)
 Server-side token only (`GITHUB_TOKEN`, a fine-grained PAT; falls back to the host's `gh auth token`).
 The token is never returned to clients. Upstream failures map to `404` (not found / no access),
@@ -80,6 +89,10 @@ The token is never returned to clients. Upstream failures map to `404` (not foun
 | GET | `/api/v1/github/repos` | Repos the token can access (`full_name`, `default_branch`, `private`, `can_push`, …) |
 | GET | `/api/v1/github/repos/{owner}/{name}/issues?state=open` | Issues (PRs filtered out) |
 | GET | `/api/v1/github/repos/{owner}/{name}/tree?ref=` | Files at `ref` (default branch if omitted) plus the resolved `commit_sha` |
+
+A run also carries `review_warnings`: security-sensitive constructs the patch newly adds
+(environment access, process execution, network calls, credential paths, payload decoding),
+shown to the reviewer before approval. They warn; they don't block.
 
 Run `status` values: `running`, `validated` (waiting for approval), `test_failed`,
 `review_failed`, `error`, `cancelled`, `approved`, `rejected`, `published`, `publish_failed`.
