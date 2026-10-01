@@ -42,10 +42,14 @@ The repo contains the curated export, [`deploy/showcase.json`](../deploy/showcas
 From `apps/api` with the virtualenv active:
 
 ```bash
-DATABASE_URL='<neon connection string>' python -m scripts.showcase import ../../deploy/showcase.json
+read -rs DATABASE_URL && export DATABASE_URL   # paste the Neon string, press Enter (input is hidden)
+python -m scripts.showcase import ../../deploy/showcase.json
+unset DATABASE_URL
 ```
 
-It prints the imported counts. It's idempotent — re-run it after refreshing the export:
+The hidden prompt keeps the password off the screen and out of shell history, and it can't be
+broken by the `&` in Neon's URL (an unquoted `&` splits the command — and the import would then
+run against your *local* database instead). It prints the imported counts. It's idempotent — re-run it after refreshing the export:
 `python -m scripts.showcase export --tasks 3 4 51 --evals lite-s20-seed7 lite-s20-seed7-v1-nogate`
 (against your local database), commit, and import again.
 
