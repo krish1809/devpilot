@@ -13,6 +13,7 @@ from app.schemas.agent import (
     RunRequest,
     RunResponse,
     RunSummary,
+    RunTrace,
     TaskCreate,
     TaskResponse,
 )
@@ -96,6 +97,13 @@ def get_run(run_id: int, db: DbSession, current_user: CurrentUser) -> RunRespons
     run = _owned_run(db, run_id, current_user)
     db.refresh(run)  # background steps commit on other sessions
     return _run_response(db, run)
+
+
+@router.get("/runs/{run_id}/trace", response_model=RunTrace)
+def get_run_trace(run_id: int, db: DbSession, current_user: CurrentUser) -> RunTrace:
+    """The run's LLM calls (usage, latency, outcome) and audited MCP tool calls."""
+    _owned_run(db, run_id, current_user)
+    return agent_service.get_run_trace(db, run_id)
 
 
 @router.get("/runs/{run_id}/checkpoints", response_model=list[CheckpointResponse])

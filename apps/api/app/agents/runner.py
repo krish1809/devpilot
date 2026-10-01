@@ -26,6 +26,7 @@ from app.db.session import SessionLocal
 from app.integrations.git_ops import GitError
 from app.integrations.github_api import GitHubError
 from app.integrations.llm import LLMError
+from app.mcp.client import stdio_target
 from app.models.agent_run import AgentRun, Approval, RunStatus
 from app.models.task import Task
 from app.rag.embeddings import EmbeddingError
@@ -45,7 +46,11 @@ class ApprovalError(RunStateError):
 
 @lru_cache
 def _default_deps() -> AgentDeps:
-    return AgentDeps(session_factory=SessionLocal, checkpointer=get_postgres_checkpointer())
+    return AgentDeps(
+        session_factory=SessionLocal,
+        checkpointer=get_postgres_checkpointer(),
+        tool_server=stdio_target,  # sandbox runs go through the MCP server
+    )
 
 
 def get_agent_deps() -> AgentDeps:

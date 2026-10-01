@@ -30,7 +30,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TypedDict
+from typing import Any, TypedDict
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
@@ -49,9 +49,12 @@ from app.agents.prompts import (  # noqa: F401  (re-exported for callers/tests)
 )
 from app.core.config import Settings, get_settings
 from app.integrations import git_ops, github_api, github_pr
-from app.integrations.llm import LLMProvider, Message, get_llm_provider
+from app.integrations.llm import LLMError, LLMProvider, Message, get_llm_provider
+from app.mcp.client import ToolCallError, call_tool
+from app.mcp.server import EXECUTE, READ, ToolBinding
 from app.models.agent_run import AgentRun, PullRequest, RunEvent, RunStatus
 from app.models.task import Task
+from app.models.trace import LlmCall
 from app.rag import index as rag_index
 from app.rag.chunking import is_doc_path, is_indexable_path, is_test_path, read_indexable_text
 from app.rag.embeddings import Embedder, get_embedder
@@ -114,6 +117,11 @@ class AgentDeps:
     embedder_factory: Callable[[], Embedder] = get_embedder
     sandbox: Callable[..., SandboxResult] = run_in_sandbox
     publisher: Callable[..., dict] = github_pr.open_pull_request
+    # When set, sandbox test runs go through the devpilot-tools MCP server:
+    # called with the run's binding, returns an MCP target (stdio launch
+    # parameters in production, an in-process server in tests). None = call the
+    # sandbox directly.
+    tool_server: Callable[[ToolBinding], Any] | None = None
     settings: Settings = field(default_factory=get_settings)
     workspace_root: Path = field(
         default_factory=lambda: Path(tempfile.gettempdir()) / "devpilot_runs"
@@ -182,8 +190,10 @@ def _usage(state: AgentState) -> dict:
     }
 
 
-def _call_llm(deps: AgentDeps, state: AgentState, messages: list[Message]) -> tuple[str, dict]:
-    """One budgeted LLM call. Returns (reply, updated usage counters)."""
+def _call_llm(
+    deps: AgentDeps, state: AgentState, messages: list[Message], node: str
+) -> tuple[str, dict]:
+    """One budgeted, traced LLM call. Returns (reply, updated usage counters)."""
     s = deps.settings
     used = _usage(state)
     if used["llm_calls"] >= s.agent_max_llm_calls:
@@ -192,13 +202,23 @@ def _call_llm(deps: AgentDeps, state: AgentState, messages: list[Message]) -> tu
         raise RunAborted(f"Token budget exhausted ({s.agent_max_tokens} tokens)")
 
     llm = deps.llm()
-    reply = llm.complete(messages)
+    prompt_chars = sum(len(m.content) for m in messages)
+    started = time.monotonic()
+    try:
+        reply = llm.complete(messages)
+    except LLMError as exc:
+        _trace_llm(deps, state["run_id"], node, prompt_chars, started, error=str(exc))
+        raise
     reported = getattr(llm, "last_usage", None)
     if reported:
         prompt, completion = reported["prompt_tokens"], reported["completion_tokens"]
     else:  # provider didn't report usage: estimate (~4 chars/token)
-        prompt = sum(len(m.content) for m in messages) // 4
+        prompt = prompt_chars // 4
         completion = len(reply) // 4
+    _trace_llm(
+        deps, state["run_id"], node, prompt_chars, started,
+        prompt_tokens=prompt, completion_tokens=completion, estimated=not reported,
+    )  # fmt: skip
     usage = {
         "llm_calls": used["llm_calls"] + 1,
         "prompt_tokens": used["prompt_tokens"] + prompt,
@@ -206,6 +226,31 @@ def _call_llm(deps: AgentDeps, state: AgentState, messages: list[Message]) -> tu
     }
     _update_run(deps, state["run_id"], **usage)
     return reply, usage
+
+
+def _trace_llm(
+    deps: AgentDeps,
+    run_id: int,
+    node: str,
+    prompt_chars: int,
+    started: float,
+    *,
+    prompt_tokens: int = 0,
+    completion_tokens: int = 0,
+    estimated: bool = False,
+    error: str | None = None,
+) -> None:
+    with deps.session_factory() as db:
+        db.add(
+            LlmCall(
+                run_id=run_id, node=node, model=deps.settings.llm_model,
+                prompt_chars=prompt_chars, prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens, tokens_estimated=estimated,
+                latency_ms=int((time.monotonic() - started) * 1000),
+                ok=error is None, error=error[:2000] if error else None,
+            )
+        )  # fmt: skip
+        db.commit()
 
 
 def _checkout(deps: AgentDeps, state: AgentState, *, fresh: bool = False) -> Path:
@@ -223,13 +268,21 @@ def _checkout(deps: AgentDeps, state: AgentState, *, fresh: bool = False) -> Pat
     return ws
 
 
-def _sandbox(deps: AgentDeps, ws: Path, command: str) -> SandboxResult:
-    return deps.sandbox(
-        ws,
-        command,
-        image=deps.settings.sandbox_image,
-        timeout_seconds=deps.settings.sandbox_timeout_seconds,
-    )
+def _sandbox(deps: AgentDeps, ws: Path, command: str, run_id: int) -> SandboxResult:
+    timeout = deps.settings.sandbox_timeout_seconds
+    if deps.tool_server is None:
+        return deps.sandbox(ws, command, image=deps.settings.sandbox_image, timeout_seconds=timeout)
+    binding = ToolBinding(run_id, frozenset({READ, EXECUTE}), deps.workspace_root)
+    try:
+        out = call_tool(
+            deps.tool_server(binding), "run_tests", {"command": command}, timeout=timeout + 60
+        )
+    except ToolCallError as exc:
+        raise RunAborted(f"Tool call refused: {exc}") from exc
+    return SandboxResult(
+        passed=out["passed"], exit_code=out["exit_code"], output=out["output"],
+        timed_out=out["timed_out"],
+    )  # fmt: skip
 
 
 # --------------------------------------------------------------------------- #
@@ -254,7 +307,7 @@ def _prepare(deps: AgentDeps, deadline: float | None, state: AgentState) -> dict
         return {"base_commit": sha, "original": original, "baseline_output": ""}
 
     _event(deps, run_id, "prepare", f"Running baseline test: {state['test_command']}")
-    baseline = _sandbox(deps, ws, state["test_command"])
+    baseline = _sandbox(deps, ws, state["test_command"], run_id)
     git_ops.reset_worktree(ws)  # drop anything the test run wrote
     _event(
         deps,
@@ -387,7 +440,7 @@ def _plan(deps: AgentDeps, deadline: float | None, state: AgentState) -> dict:
     _guard(deps, run_id, deadline)
     if state.get("target_path"):
         _event(deps, run_id, "plan", "Planning the fix")
-        reply, usage = _call_llm(deps, state, planner_messages(state, deps.settings))
+        reply, usage = _call_llm(deps, state, planner_messages(state, deps.settings), "plan")
         plan = reply.strip()[:4000]
         _update_run(deps, run_id, plan=plan)
         _event(deps, run_id, "plan", f"Plan ready ({len(plan.splitlines())} lines)")
@@ -397,7 +450,7 @@ def _plan(deps: AgentDeps, deadline: float | None, state: AgentState) -> dict:
     if not candidates:
         raise RunAborted("No target file given and retrieval found no candidate files.")
     _event(deps, run_id, "plan", "Choosing the file to change and planning the fix")
-    reply, usage = _call_llm(deps, state, planner_messages(state, deps.settings))
+    reply, usage = _call_llm(deps, state, planner_messages(state, deps.settings), "plan")
     chosen, plan = parse_localized_plan(reply)
     ws = _checkout(deps, state)
     if _is_allowed_target(ws, chosen):
@@ -433,7 +486,7 @@ def _code(deps: AgentDeps, deadline: float | None, state: AgentState) -> dict:
             else "writing the patch"
         ),
     )
-    reply, usage = _call_llm(deps, state, coder_messages(state, deps.settings))
+    reply, usage = _call_llm(deps, state, coder_messages(state, deps.settings), "code")
     _update_run(deps, run_id, attempts=attempt)
     if not _is_edit_mode(state, deps.settings):
         candidate = extract_file_contents(reply)
@@ -464,7 +517,7 @@ def _test(deps: AgentDeps, deadline: float | None, state: AgentState) -> dict:
         return {"diff": diff, "test_passed": None, "test_output": "", "feedback": ""}
 
     _event(deps, run_id, "test", f"Running `{state['test_command']}` in the sandbox")
-    result = _sandbox(deps, ws, state["test_command"])
+    result = _sandbox(deps, ws, state["test_command"], run_id)
     # Diff *after* the test so the reviewer sees anything the test run changed.
     diff = git_ops.git_diff(ws)
     _update_run(deps, run_id, diff=diff, test_passed=result.passed, sandbox_output=result.output)

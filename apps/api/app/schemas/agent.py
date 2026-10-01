@@ -189,3 +189,41 @@ class GitHubTree(BaseModel):
     ref: str
     commit_sha: str
     files: list[str]
+
+
+# --- Tracing (Phase 8) -----------------------------------------------------
+class LlmCallResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    node: str
+    model: str
+    prompt_chars: int
+    prompt_tokens: int
+    completion_tokens: int
+    tokens_estimated: bool
+    latency_ms: int
+    ok: bool
+    error: str | None
+    created_at: datetime
+
+
+class ToolCallResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    tool: str
+    arguments: dict
+    allowed: bool
+    ok: bool
+    detail: str | None
+    output_chars: int
+    latency_ms: int
+    created_at: datetime
+
+
+class RunTrace(BaseModel):
+    llm_calls: list[LlmCallResponse]
+    tool_calls: list[ToolCallResponse]
+    total_tokens: int
+    llm_latency_ms: int

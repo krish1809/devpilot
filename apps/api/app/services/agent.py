@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.integrations import github_api
 from app.models.agent_run import AgentRun, PullRequest, RunEvent
 from app.models.task import Task
+from app.models.trace import LlmCall, ToolCall
 
 
 def create_task(db: Session, owner_id: int, **fields) -> Task:
@@ -55,3 +56,17 @@ def list_run_events(db: Session, run_id: int) -> list[RunEvent]:
 
 def get_pull_request(db: Session, run_id: int) -> PullRequest | None:
     return db.scalar(select(PullRequest).where(PullRequest.run_id == run_id))
+
+
+def get_run_trace(db: Session, run_id: int) -> dict:
+    """Every LLM call and MCP tool call recorded for a run, in order."""
+    llm = list(db.scalars(select(LlmCall).where(LlmCall.run_id == run_id).order_by(LlmCall.id)))
+    tools = list(
+        db.scalars(select(ToolCall).where(ToolCall.run_id == run_id).order_by(ToolCall.id))
+    )
+    return {
+        "llm_calls": llm,
+        "tool_calls": tools,
+        "total_tokens": sum(c.prompt_tokens + c.completion_tokens for c in llm),
+        "llm_latency_ms": sum(c.latency_ms for c in llm),
+    }

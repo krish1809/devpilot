@@ -5,6 +5,9 @@
         --owner you@example.com [--configs rag oracle-file oracle-file+rag]
     python -m scripts.swebench_eval score  --name lite-s20
     python -m scripts.swebench_eval report --name lite-s20   # -> docs/eval/
+    # or all of it, unattended across LLM daily-quota windows:
+    python -m scripts.swebench_eval run-all --name lite-s20 --n 20 --seed 7 \
+        --owner you@example.com --with-gold
 
 Both generate and score are resumable: re-running skips finished work, and
 generate stops cleanly when the LLM provider's daily quota runs out.
@@ -34,7 +37,8 @@ def _run(db, name: str) -> EvalRun:  # noqa: ANN001
     return run
 
 
-def cmd_generate(args: argparse.Namespace) -> None:
+def cmd_generate(args: argparse.Namespace) -> bool:
+    """Returns True when every (instance, config) has a result."""
     instances = sb.load_dataset()
     if args.instances:
         wanted = set(args.instances)
@@ -60,16 +64,25 @@ def cmd_generate(args: argparse.Namespace) -> None:
         deps = sb.make_deps(SessionLocal, settings)
         try:
             sb.generate(db, deps, run, ordered, owner.id, keep_index=args.keep_index)
-        except sb.QuotaExhausted as exc:
-            print(f"Stopped: LLM daily quota reached ({exc}). Re-run later to resume.")
+        except sb.QuotaExhausted:
+            print("Stopped: LLM daily token quota reached. Re-run later to resume.")
+            return False
+        return True
 
 
 def cmd_score(args: argparse.Namespace) -> None:
     with SessionLocal() as db:
         run = _run(db, args.name)
-        if args.with_gold:
+        if args.with_gold:  # only for instances the agent has attempted
             by_id = {i.instance_id: i for i in sb.load_dataset()}
-            sb.add_gold(db, run, [by_id[i] for i in run.instance_ids])
+            attempted = set(
+                db.scalars(
+                    select(EvalResult.instance_id).where(
+                        EvalResult.eval_run_id == run.id, EvalResult.config != "gold"
+                    )
+                )
+            )
+            sb.add_gold(db, run, [by_id[i] for i in run.instance_ids if i in attempted])
         sb.score(
             db,
             run,
@@ -100,10 +113,27 @@ def cmd_report(args: argparse.Namespace) -> None:
             for r in sorted(results, key=lambda r: (r.instance_id, r.config))
         ],
     }  # fmt: skip
+    for row in data["results"]:
+        row["error"] = sb.scrub(row["error"])
     stem = DOCS / f"phase7-{run.name}"
     stem.with_suffix(".json").write_text(json.dumps(data, indent=2, default=str))
     stem.with_suffix(".md").write_text(render_markdown(run, summary, results, configs))
     print(stem.with_suffix(".md").read_text())
+
+
+def cmd_run_all(args: argparse.Namespace) -> None:
+    """generate → score → (sleep while the LLM quota refills) → … → report."""
+    import time
+
+    while True:
+        done = cmd_generate(args)
+        cmd_score(args)
+        cmd_report(args)  # refresh the (partial) report after every pass
+        if done:
+            print("All instances generated and scored.")
+            return
+        print(f"Waiting {args.sleep}s for the LLM quota window…", flush=True)
+        time.sleep(args.sleep)
 
 
 def render_markdown(
@@ -186,6 +216,19 @@ def main() -> None:
     s.add_argument("--keep-images", action="store_true")
     s.add_argument("--with-gold", action="store_true", help="also score reference patches")
     s.set_defaults(fn=cmd_score)
+    a = sub.add_parser("run-all", help="generate+score+report until complete")
+    for flag, kw in (
+        ("--name", {"required": True}), ("--owner", {"required": True}),
+        ("--n", {"type": int, "default": 20}), ("--seed", {"type": int, "default": 7}),
+        ("--instances", {"nargs": "*"}), ("--timeout", {"type": int, "default": 1800}),
+        ("--sleep", {"type": int, "default": 1800}),
+    ):  # fmt: skip
+        a.add_argument(flag, **kw)
+    a.add_argument("--configs", nargs="+", default=list(sb.CONFIGS), choices=list(sb.CONFIGS))
+    a.add_argument("--keep-index", action="store_true")
+    a.add_argument("--keep-images", action="store_true")
+    a.add_argument("--with-gold", action="store_true")
+    a.set_defaults(fn=cmd_run_all)
     r = sub.add_parser("report")
     r.add_argument("--name", required=True)
     r.set_defaults(fn=cmd_report)

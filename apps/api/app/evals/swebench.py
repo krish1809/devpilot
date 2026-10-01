@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import json
 import random
+import re
 import shutil
 import subprocess
 import time
@@ -76,6 +77,14 @@ EVAL_SETTINGS = {
     "rag_max_chunks": 12_000,
     "agent_run_timeout_seconds": 1_800,
 }
+
+
+_ORG_ID = re.compile(r"org_[A-Za-z0-9]+")
+
+
+def scrub(text: str | None) -> str | None:
+    """Remove account identifiers (e.g. a provider org id in a 429 message)."""
+    return _ORG_ID.sub("org_[redacted]", text) if text else text
 
 
 class QuotaExhausted(Exception):
@@ -236,7 +245,7 @@ def generate(
                     target_path=run.target_path,
                     gold_path=inst.gold_path,
                     localized=(run.target_path == inst.gold_path) if run.target_path else False,
-                    error=run.error,
+                    error=scrub(run.error),
                     llm_calls=run.llm_calls,
                     prompt_tokens=run.prompt_tokens,
                     completion_tokens=run.completion_tokens,
