@@ -26,7 +26,7 @@ const EMPTY = {
 };
 
 export default function TasksPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, demoMode } = useAuth();
   const router = useRouter();
 
   const [tasks, setTasks] = useState<Task[] | null>(null);
@@ -72,7 +72,9 @@ export default function TasksPage() {
       await load();
       router.push(`/tasks/${task.id}`);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : "Failed to create task");
+      setFormError(
+        err instanceof ApiError ? err.message : "Failed to create task",
+      );
     } finally {
       setCreating(false);
     }
@@ -93,83 +95,94 @@ export default function TasksPage() {
           <Bot className="h-6 w-6 text-primary" /> Agent tasks
         </h1>
         <p className="text-sm text-muted-foreground">
-          Import a GitHub issue (or point at any repo with a failing test); the agent proposes a
-          fix and opens a PR after your approval.
+          {demoMode
+            ? "Real runs recorded with DevPilot: open one to see the plan, the retrieved context, the diff, the sandbox result, the trace and the pull request."
+            : "Import a GitHub issue (or point at any repo with a failing test); the agent proposes a fix and opens a PR after your approval."}
         </p>
       </div>
 
-      <ImportFromIssue onCreated={(task) => router.push(`/tasks/${task.id}`)} />
+      {!demoMode && (
+        <>
+          <ImportFromIssue
+            onCreated={(task) => router.push(`/tasks/${task.id}`)}
+          />
 
-      <details className="group">
-        <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">
-          Or create a task manually (any git URL)
-        </summary>
-        <Card className="mt-3">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Plus className="h-4 w-4" /> New task
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleCreate} className="space-y-4">
-              {formError && <ErrorAlert message={formError} />}
-              <div>
-                <Label htmlFor="repo_url">Repository URL</Label>
-                <Input
-                  id="repo_url"
-                  value={form.repo_url}
-                  onChange={(e) => set("repo_url", e.target.value)}
-                  placeholder="https://github.com/you/repo.git"
-                  required
-                />
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <Label htmlFor="target_path">Target file (optional)</Label>
-                  <Input
-                    id="target_path"
-                    value={form.target_path}
-                    onChange={(e) => set("target_path", e.target.value)}
-                    placeholder="empty = let the agent find it"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="base_commit">Base commit (optional)</Label>
-                  <Input
-                    id="base_commit"
-                    value={form.base_commit}
-                    onChange={(e) => set("base_commit", e.target.value)}
-                    placeholder="HEAD if empty"
-                  />
-                </div>
-              </div>
-              <div>
-                <Label htmlFor="test_command">Test command</Label>
-                <Input
-                  id="test_command"
-                  value={form.test_command}
-                  onChange={(e) => set("test_command", e.target.value)}
-                  placeholder="python -m unittest test_calculator"
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="description">Description (optional)</Label>
-                <Textarea
-                  id="description"
-                  value={form.description}
-                  onChange={(e) => set("description", e.target.value)}
-                  placeholder="What should the agent fix?"
-                />
-              </div>
-              <Button type="submit" disabled={creating}>
-                {creating && <Spinner />}
-                Create task
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      </details>
+          <details className="group">
+            <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">
+              Or create a task manually (any git URL)
+            </summary>
+            <Card className="mt-3">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Plus className="h-4 w-4" /> New task
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleCreate} className="space-y-4">
+                  {formError && <ErrorAlert message={formError} />}
+                  <div>
+                    <Label htmlFor="repo_url">Repository URL</Label>
+                    <Input
+                      id="repo_url"
+                      value={form.repo_url}
+                      onChange={(e) => set("repo_url", e.target.value)}
+                      placeholder="https://github.com/you/repo.git"
+                      required
+                    />
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <Label htmlFor="target_path">
+                        Target file (optional)
+                      </Label>
+                      <Input
+                        id="target_path"
+                        value={form.target_path}
+                        onChange={(e) => set("target_path", e.target.value)}
+                        placeholder="empty = let the agent find it"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="base_commit">
+                        Base commit (optional)
+                      </Label>
+                      <Input
+                        id="base_commit"
+                        value={form.base_commit}
+                        onChange={(e) => set("base_commit", e.target.value)}
+                        placeholder="HEAD if empty"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="test_command">Test command</Label>
+                    <Input
+                      id="test_command"
+                      value={form.test_command}
+                      onChange={(e) => set("test_command", e.target.value)}
+                      placeholder="python -m unittest test_calculator"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="description">Description (optional)</Label>
+                    <Textarea
+                      id="description"
+                      value={form.description}
+                      onChange={(e) => set("description", e.target.value)}
+                      placeholder="What should the agent fix?"
+                    />
+                  </div>
+                  <Button type="submit" disabled={creating}>
+                    {creating && <Spinner />}
+                    Create task
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          </details>
+        </>
+      )}
 
       <section>
         {error && <ErrorAlert message={error} className="mb-4" />}
@@ -201,7 +214,8 @@ export default function TasksPage() {
                             )}
                           </p>
                           <p className="truncate font-mono text-xs text-muted-foreground">
-                            {task.target_path ?? "file: auto"} · {task.test_command}
+                            {task.target_path ?? "file: auto"} ·{" "}
+                            {task.test_command}
                           </p>
                         </div>
                         <span className="shrink-0 text-xs text-muted-foreground">

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 
 export function Nav() {
-  const { user, logout } = useAuth();
+  const { user, logout, demoMode } = useAuth();
   const router = useRouter();
 
   function handleLogout() {
@@ -61,6 +61,21 @@ export function Nav() {
           </div>
         )}
       </div>
+      {demoMode && (
+        <div className="border-t border-border bg-primary/10 px-4 py-1.5 text-center text-xs text-muted-foreground">
+          Read-only showcase of real DevPilot runs. Starting the agent needs Docker, so it runs
+          locally —{" "}
+          <a
+            href="https://github.com/krish1809/devpilot"
+            className="text-primary hover:underline"
+            target="_blank"
+            rel="noreferrer"
+          >
+            see the code
+          </a>
+          .
+        </div>
+      )}
     </header>
   );
 }

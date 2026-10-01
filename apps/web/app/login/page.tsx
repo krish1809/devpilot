@@ -14,7 +14,7 @@ import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 
 export default function LoginPage() {
-  const { user, loading, login } = useAuth();
+  const { user, loading, login, demoMode, loginDemo } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -24,6 +24,19 @@ export default function LoginPage() {
   useEffect(() => {
     if (!loading && user) router.replace("/tasks");
   }, [user, loading, router]);
+
+  async function handleDemo() {
+    setError(null);
+    setSubmitting(true);
+    try {
+      await loginDemo();
+      router.push("/tasks");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not open the demo");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -40,7 +53,24 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="mx-auto max-w-md pt-8">
+    <div className="mx-auto max-w-md space-y-4 pt-8">
+      {demoMode && (
+        <Card className="border-primary/40">
+          <CardHeader>
+            <CardTitle>Explore the DevPilot showcase</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-muted-foreground">
+            <p>
+              A read-only tour of real runs: an AI agent turning GitHub issues into tested pull
+              requests — plans, diffs, sandbox results, traces, and SWE-bench Lite results.
+            </p>
+            <Button className="w-full" onClick={handleDemo} disabled={submitting}>
+              {submitting && <Spinner />}
+              View the demo — no account needed
+            </Button>
+          </CardContent>
+        </Card>
+      )}
       <Card>
         <CardHeader>
           <CardTitle>Log in to DevPilot</CardTitle>
@@ -75,12 +105,14 @@ export default function LoginPage() {
               Log in
             </Button>
           </form>
-          <p className="mt-4 text-center text-sm text-muted-foreground">
-            No account?{" "}
-            <Link href="/register" className="text-primary hover:underline">
-              Sign up
-            </Link>
-          </p>
+          {!demoMode && (
+            <p className="mt-4 text-center text-sm text-muted-foreground">
+              No account?{" "}
+              <Link href="/register" className="text-primary hover:underline">
+                Sign up
+              </Link>
+            </p>
+          )}
         </CardContent>
       </Card>
     </div>

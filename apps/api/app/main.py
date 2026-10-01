@@ -8,6 +8,7 @@ from app.api.evals import router as evals_router
 from app.api.github import router as github_router
 from app.api.projects import router as projects_router
 from app.core.config import get_settings
+from app.core.demo import ReadOnlyShowcaseMiddleware
 
 settings = get_settings()
 
@@ -19,6 +20,8 @@ app = FastAPI(
 
 _cors_origins = [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
 
+app.add_middleware(ReadOnlyShowcaseMiddleware)
+# Added last so it runs first: even refused responses carry CORS headers.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
@@ -58,6 +61,12 @@ app.include_router(
     evals_router,
     prefix="/api/v1",
 )
+
+
+@app.get("/api/v1/config", tags=["system"])
+def public_config() -> dict[str, bool]:
+    """Public, non-secret flags the web app adapts to."""
+    return {"demo_mode": get_settings().demo_mode}
 
 
 @app.get("/health", tags=["system"])

@@ -1,6 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # apps/api/.env, resolved from this file's location so it loads regardless of
@@ -25,6 +26,10 @@ class Settings(BaseSettings):
     rate_limit_enabled: bool = True
     auth_rate_limit_max: int = 10
     auth_rate_limit_window_seconds: int = 60
+
+    # Public read-only showcase (Phase 9): see app/core/demo.py.
+    demo_mode: bool = False
+    demo_user_email: str = "demo@devpilot.dev"
 
     # Comma-separated list of allowed browser origins for CORS.
     cors_origins: str = "http://localhost:3000"
@@ -74,6 +79,15 @@ class Settings(BaseSettings):
     # Sandbox for running untrusted repository code.
     sandbox_image: str = "python:3.11-slim"
     sandbox_timeout_seconds: int = 120
+
+    @field_validator("database_url")
+    @classmethod
+    def _use_psycopg_driver(cls, v: str) -> str:
+        """Accept the plain URLs hosts hand out (postgres://, postgresql://)."""
+        for prefix in ("postgres://", "postgresql://"):
+            if v.startswith(prefix):
+                return "postgresql+psycopg://" + v[len(prefix) :]
+        return v
 
     model_config = SettingsConfigDict(
         env_file=str(_ENV_FILE),

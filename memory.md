@@ -7,7 +7,8 @@
 4 ✅ (real GitHub integration — issue #2 → PR #3, merged), 5 ✅ (LangGraph agent),
 6 ✅ (repository RAG + file localization), 7 🟡 (harness done; v2 benchmark running
 unattended over ~3 days of LLM quota), 8 ✅ in code (MCP server, tracing, injection defenses).
-**Next: Phase 9 — deploy (showcase mode) + README/demo.** SSE streaming still deferred.
+9 🟡 (showcase mode + deploy configs + README done and rehearsed; **waiting on the user's
+Neon/Render/Vercel accounts** — steps in docs/DEPLOY.md). SSE streaming still deferred.
 
 > Update this at the end of every session. Fuller tracking: [docs/PROGRESS.md](docs/PROGRESS.md).
 
@@ -34,7 +35,7 @@ unattended over ~3 days of LLM quota), 8 ✅ in code (MCP server, tracing, injec
 - UI: `components/ImportFromIssue.tsx` on `/tasks`; manual form behind a `<details>`.
 - Verified: 91 backend tests, ruff clean; web lint + tsc + 7 Vitest + build green; live read-only calls against GitHub OK (38 repos, tree@SHA, 404 mapping, PR-not-issue refusal).
 - **Proof (2026-10-01):** planted `percent()` bug (`//` vs `/`) on `krish1809/devpilot-demo` @ `5eec58f`, opened issue #2 → `POST /tasks/from-issue` (task pinned to that SHA) → run 3 validated in sandbox (Groq one-line fix) → approve → https://github.com/krish1809/devpilot-demo/pull/3 ("Fixes #2", approval row stores diff sha256 `285019f4a722` + base commit). PR #3 left open for the user to merge.
-- Dev DB has a smoke user `smoke-phase4@example.com` (password `smokepass123`, dev only) owning the live-check tasks/runs.
+- Dev DB has a smoke user `smoke-phase4@example.com` (local dev DB only; password not recorded here) owning the live-check tasks/runs.
 
 ## ✅ Phase 5 — LangGraph agent (done, proven live)
 - `app/agents/graph.py` (state graph + nodes + budgets/guards), `checkpoint.py` (PostgresSaver), `runner.py` (start/execute/cancel/resume/approve/checkpoint_history). `services/agent.py` is now queries only.
@@ -69,8 +70,15 @@ unattended over ~3 days of LLM quota), 8 ✅ in code (MCP server, tracing, injec
 - Injection: `tests/test_injection.py` (secrets never in prompts, injected text confined to untrusted tags, protected CI/secret paths, sandbox has no network); `agents/risk.py` review warnings above Approve; syntax gate in `_code`.
 - Tests: 183 backend, 17 web. Migration head `b04f052d3d3e`.
 
-## 🟡 Phase 9 — Deploy + polish (seed only)
-- GitHub Actions CI (`.github/workflows/ci.yml`) — backend ruff+migrations+pytest and frontend lint+vitest+build. Was red from Phase 4 until 2026-10-01 (setuptools flat-layout error on `pip install -e .`); fixed — **check `gh run list` after every push**. Deploy (Vercel/Render/Neon) + demo README not done.
+## 🟡 Phase 9 — Deploy + polish (ready to deploy)
+- Showcase mode `DEMO_MODE=true` (`app/core/demo.py`): middleware refuses all writes except login + `/auth/demo`, blocks `/api/v1/github/*`; `POST /auth/demo` → read-only demo user; `GET /api/v1/config` → `{demo_mode}`. Web adapts (demo button on login, banner, hides run/approve/import controls).
+- `scripts/showcase.py export|import` → `deploy/showcase.json` (tasks 3, 4, 51 + both SWE-bench runs; scrubbed paths/org ids; idempotent import under demo user). **Re-export after the v2 benchmark finishes**, commit, re-import into Neon.
+- Deploy: `render.yaml` (API, Docker, free), Dockerfile runs `alembic upgrade head` then uvicorn on `$PORT`; DB URLs `postgres://`/`postgresql://` auto-normalized; Vercel root `apps/web` with `NEXT_PUBLIC_API_URL`; Neon for Postgres+pgvector. Guide: `docs/DEPLOY.md`.
+- Rehearsed 2026-10-02: built image (702 MB), ran in demo mode on an empty DB → migrations OK, 118 MB RAM, import OK (twice), visitor flow + 403 on writes + CORS OK.
+- Showcase run: devpilot-demo issue #4 (weather °C bug in units.py, not named in the issue) → localized via RAG → PR #5 (run 51, through MCP stdio, traced).
+- README rewritten as a product page; screenshots + GIF in `docs/images/` (captured with playwright-core driving system Chrome; script lives in the session scratchpad — recapture benchmarks.png when v2 completes).
+- I accidentally committed `__pycache__` to devpilot-demo (Phase 4 + Phase 9 commits); removed in `fddab84` with a `.gitignore`.
+- (older note) GitHub Actions CI (`.github/workflows/ci.yml`) — backend ruff+migrations+pytest and frontend lint+vitest+build. Was red from Phase 4 until 2026-10-01 (setuptools flat-layout error on `pip install -e .`); fixed — **check `gh run list` after every push**. Deploy (Vercel/Render/Neon) + demo README not done.
 
 ## Built beyond the plan's minimal scope (kept, harmless)
 - Per-owner project scoping (`owner_id`), auth rate limiting, audit log (`audit_logs`, `/audit/me`). Plan keeps auth minimal and puts audit in Phase 8; these are ahead of schedule and reusable. Kept to avoid churn.

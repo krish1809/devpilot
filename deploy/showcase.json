@@ -1,0 +1,1316 @@
+{
+ "version": 1,
+ "tasks": [
+  {
+   "task": {
+    "repo_url": "https://github.com/krish1809/devpilot-demo.git",
+    "base_commit": "5eec58f0eaa835c2e5d48884769ee91a3e6572b1",
+    "repo_full_name": "krish1809/devpilot-demo",
+    "base_branch": "main",
+    "issue_number": 2,
+    "issue_title": "percent() returns 0 for fractional results",
+    "issue_url": "https://github.com/krish1809/devpilot-demo/issues/2",
+    "test_command": "python -m unittest test_calculator",
+    "target_path": "calculator.py",
+    "description": "percent() returns 0 for fractional results\n\n`percent(1, 4)` should return `25.0`, but it returns `0`.\n\nRepro:\n```python\nfrom calculator import percent\npercent(1, 4)  # 0, expected 25.0\n```\n\n`python -m unittest test_calculator` fails on `test_percent`.",
+    "created_at": "2026-10-01T04:56:40.268008+00:00"
+   },
+   "runs": [
+    {
+     "run": {
+      "status": "published",
+      "model": "openai/gpt-oss-120b",
+      "base_commit": "5eec58f0eaa835c2e5d48884769ee91a3e6572b1",
+      "plan": null,
+      "attempts": 0,
+      "llm_calls": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "cancel_requested": false,
+      "use_rag": false,
+      "target_path": null,
+      "retrieval": null,
+      "review_warnings": null,
+      "diff": "diff --git a/calculator.py b/calculator.py\nindex ef5969f..2557cec 100644\n--- a/calculator.py\n+++ b/calculator.py\n@@ -4,4 +4,4 @@ def add(a, b):\n \n def percent(part, whole):\n     \"\"\"Return what percentage `part` is of `whole`, e.g. percent(1, 4) == 25.0.\"\"\"\n-    return part // whole * 100\n+    return part / whole * 100\n",
+      "test_passed": true,
+      "sandbox_output": "..\n----------------------------------------------------------------------\nRan 2 tests in 0.000s\n\nOK\n",
+      "error": null,
+      "created_at": "2026-10-01T04:56:41.900648+00:00",
+      "updated_at": "2026-10-01T04:56:51.785727+00:00"
+     },
+     "run_events": [
+      {
+       "seq": 1,
+       "stage": "start",
+       "message": "Run started for task 3",
+       "created_at": "2026-10-01T04:56:41.910240+00:00"
+      },
+      {
+       "seq": 2,
+       "stage": "clone",
+       "message": "Cloning https://github.com/krish1809/devpilot-demo.git @ 5eec58f0eaa835c2e5d48884769ee91a3e6572b1",
+       "created_at": "2026-10-01T04:56:41.923210+00:00"
+      },
+      {
+       "seq": 3,
+       "stage": "baseline",
+       "message": "Running failing test: python -m unittest test_calculator",
+       "created_at": "2026-10-01T04:56:41.931261+00:00"
+      },
+      {
+       "seq": 4,
+       "stage": "plan",
+       "message": "Requesting a patch from the LLM",
+       "created_at": "2026-10-01T04:56:42.920787+00:00"
+      },
+      {
+       "seq": 5,
+       "stage": "patch",
+       "message": "Applied patch; re-running the test",
+       "created_at": "2026-10-01T04:56:43.511146+00:00"
+      },
+      {
+       "seq": 6,
+       "stage": "validate",
+       "message": "Test passed",
+       "created_at": "2026-10-01T04:56:44.424610+00:00"
+      },
+      {
+       "seq": 7,
+       "stage": "approve",
+       "message": "Run approved; opening pull request",
+       "created_at": "2026-10-01T04:56:51.770179+00:00"
+      },
+      {
+       "seq": 8,
+       "stage": "publish",
+       "message": "Opened PR: https://github.com/krish1809/devpilot-demo/pull/3",
+       "created_at": "2026-10-01T04:56:51.785727+00:00"
+      }
+     ],
+     "pull_requests": [
+      {
+       "url": "https://github.com/krish1809/devpilot-demo/pull/3",
+       "number": 3,
+       "status": "open",
+       "created_at": "2026-10-01T04:56:51.785727+00:00"
+      }
+     ],
+     "approvals": [
+      {
+       "decision": "approved",
+       "diff_sha256": "285019f4a722195fcf3d6997b647ba49c52792cb70c15cee178ae83057f755b2",
+       "base_commit": "5eec58f0eaa835c2e5d48884769ee91a3e6572b1",
+       "created_at": "2026-10-01T04:56:51.770179+00:00"
+      }
+     ],
+     "llm_calls": [],
+     "tool_calls": []
+    }
+   ]
+  },
+  {
+   "task": {
+    "repo_url": "https://github.com/krish1809/devpilot-demo.git",
+    "base_commit": "5eec58f0eaa835c2e5d48884769ee91a3e6572b1",
+    "repo_full_name": "krish1809/devpilot-demo",
+    "base_branch": "main",
+    "issue_number": null,
+    "issue_title": null,
+    "issue_url": null,
+    "test_command": "python -m unittest test_calculator",
+    "target_path": "calculator.py",
+    "description": "percent() returns 0 for fractional results (Phase 5 live check)",
+    "created_at": "2026-10-01T05:21:42.146361+00:00"
+   },
+   "runs": [
+    {
+     "run": {
+      "status": "rejected",
+      "model": "openai/gpt-oss-120b",
+      "base_commit": "5eec58f0eaa835c2e5d48884769ee91a3e6572b1",
+      "plan": "**Plan**\n\n1. **Root cause** \u2013 `percent` uses integer (floor) division (`//`). For `percent(1, 4)` this yields `0`, then `* 100` stays `0`, so the function never returns a fractional percentage.\n\n2. **Desired behavior** \u2013 The function should compute a true (floating\u2011point) division and then multiply by 100, returning a `float` (e.g., `25.0` for `1, 4`).\n\n3. **Change** \u2013 In `calculator.py`, replace the `//` operator with `/` in the return expression of `percent`.\n\n4. **Result** \u2013 The calculation becomes `part / whole * 100`, producing `0.25 * 100 = 25.0` as expected, and the test suite will pass.",
+      "attempts": 1,
+      "llm_calls": 2,
+      "prompt_tokens": 853,
+      "completion_tokens": 353,
+      "cancel_requested": false,
+      "use_rag": false,
+      "target_path": null,
+      "retrieval": null,
+      "review_warnings": null,
+      "diff": "diff --git a/calculator.py b/calculator.py\nindex ef5969f..2557cec 100644\n--- a/calculator.py\n+++ b/calculator.py\n@@ -4,4 +4,4 @@ def add(a, b):\n \n def percent(part, whole):\n     \"\"\"Return what percentage `part` is of `whole`, e.g. percent(1, 4) == 25.0.\"\"\"\n-    return part // whole * 100\n+    return part / whole * 100\n",
+      "test_passed": true,
+      "sandbox_output": "..\n----------------------------------------------------------------------\nRan 2 tests in 0.000s\n\nOK\n",
+      "error": null,
+      "created_at": "2026-10-01T05:21:42.166371+00:00",
+      "updated_at": "2026-10-01T05:22:04.175418+00:00"
+     },
+     "run_events": [
+      {
+       "seq": 1,
+       "stage": "start",
+       "message": "Run started for task 4",
+       "created_at": "2026-10-01T05:21:42.175028+00:00"
+      },
+      {
+       "seq": 2,
+       "stage": "prepare",
+       "message": "Cloning https://github.com/krish1809/devpilot-demo.git @ 5eec58f0eaa835c2e5d48884769ee91a3e6572b1",
+       "created_at": "2026-10-01T05:21:42.206715+00:00"
+      },
+      {
+       "seq": 3,
+       "stage": "prepare",
+       "message": "Running baseline test: python -m unittest test_calculator",
+       "created_at": "2026-10-01T05:21:43.281205+00:00"
+      },
+      {
+       "seq": 4,
+       "stage": "prepare",
+       "message": "Baseline test fails, as expected",
+       "created_at": "2026-10-01T05:21:43.804162+00:00"
+      },
+      {
+       "seq": 5,
+       "stage": "plan",
+       "message": "Planning the fix",
+       "created_at": "2026-10-01T05:21:43.810139+00:00"
+      },
+      {
+       "seq": 6,
+       "stage": "plan",
+       "message": "Plan ready (9 lines)",
+       "created_at": "2026-10-01T05:21:49.667575+00:00"
+      },
+      {
+       "seq": 7,
+       "stage": "code",
+       "message": "Attempt 1/3: writing the patch",
+       "created_at": "2026-10-01T05:21:49.673548+00:00"
+      },
+      {
+       "seq": 8,
+       "stage": "test",
+       "message": "Running `python -m unittest test_calculator` in the sandbox",
+       "created_at": "2026-10-01T05:21:50.450701+00:00"
+      },
+      {
+       "seq": 9,
+       "stage": "test",
+       "message": "Test passed",
+       "created_at": "2026-10-01T05:21:50.984100+00:00"
+      },
+      {
+       "seq": 10,
+       "stage": "review",
+       "message": "Review passed (2 changed lines); waiting for human approval",
+       "created_at": "2026-10-01T05:21:50.992567+00:00"
+      },
+      {
+       "seq": 11,
+       "stage": "approve",
+       "message": "Run rejected by reviewer",
+       "created_at": "2026-10-01T05:22:04.146303+00:00"
+      },
+      {
+       "seq": 12,
+       "stage": "publish",
+       "message": "Rejected by reviewer; nothing published",
+       "created_at": "2026-10-01T05:22:04.183191+00:00"
+      }
+     ],
+     "pull_requests": [],
+     "approvals": [
+      {
+       "decision": "rejected",
+       "diff_sha256": "285019f4a722195fcf3d6997b647ba49c52792cb70c15cee178ae83057f755b2",
+       "base_commit": "5eec58f0eaa835c2e5d48884769ee91a3e6572b1",
+       "created_at": "2026-10-01T05:22:04.128667+00:00"
+      }
+     ],
+     "llm_calls": [],
+     "tool_calls": []
+    }
+   ]
+  },
+  {
+   "task": {
+    "repo_url": "https://github.com/krish1809/devpilot-demo.git",
+    "base_commit": "fddab84c02fe4a3dd8ccc8ed0fe43198a202522b",
+    "repo_full_name": "krish1809/devpilot-demo",
+    "base_branch": "main",
+    "issue_number": 4,
+    "issue_title": "Weather report shows the wrong Celsius temperature",
+    "issue_url": "https://github.com/krish1809/devpilot-demo/issues/4",
+    "test_command": "python -m unittest test_weather",
+    "target_path": null,
+    "description": "Weather report shows the wrong Celsius temperature\n\nThe dashboard's weather line is off: for 68\u00b0F it shows **22.5\u00b0C**, but 68\u00b0F is **20.0\u00b0C**.\n\nThe wind speed part looks right. Repro:\n```python\nfrom weather import report\nreport(68, 10)  # '22.5\u00b0C, wind 16.1 km/h', expected '20.0\u00b0C, wind 16.1 km/h'\n```\n`python -m unittest test_weather` fails.",
+    "created_at": "2026-10-01T12:28:00.308608+00:00"
+   },
+   "runs": [
+    {
+     "run": {
+      "status": "published",
+      "model": "openai/gpt-oss-120b",
+      "base_commit": "fddab84c02fe4a3dd8ccc8ed0fe43198a202522b",
+      "plan": "1. The Fahrenheit\u2011to\u2011Celsius conversion uses an incorrect factor (5/8 instead of 5/9), producing temperatures that are too high.\n2. Update the `to_celsius` function to use the correct formula: `(fahrenheit - 32) * 5 / 9`. This will make `report` return the expected Celsius values.",
+      "attempts": 1,
+      "llm_calls": 2,
+      "prompt_tokens": 2004,
+      "completion_tokens": 333,
+      "cancel_requested": false,
+      "use_rag": true,
+      "target_path": "units.py",
+      "retrieval": {
+       "index": {
+        "id": 21,
+        "files": 5,
+        "model": "BAAI/bge-small-en-v1.5",
+        "chunks": 5,
+        "built_now": true,
+        "fully_embedded": true
+       },
+       "context": [
+        {
+         "path": "test_weather.py",
+         "score": 0.06557,
+         "end_line": 11,
+         "start_line": 1
+        },
+        {
+         "path": "weather.py",
+         "score": 0.03226,
+         "end_line": 8,
+         "start_line": 1
+        },
+        {
+         "path": "test_calculator.py",
+         "score": 0.0315,
+         "end_line": 11,
+         "start_line": 1
+        },
+        {
+         "path": "units.py",
+         "score": 0.0315,
+         "end_line": 11,
+         "start_line": 1
+        },
+        {
+         "path": "calculator.py",
+         "score": 0.03077,
+         "end_line": 7,
+         "start_line": 1
+        }
+       ],
+       "candidates": [
+        "weather.py",
+        "units.py",
+        "calculator.py",
+        "test_weather.py",
+        "test_calculator.py"
+       ],
+       "boosted_paths": [
+        "test_weather.py"
+       ]
+      },
+      "review_warnings": [],
+      "diff": "diff --git a/units.py b/units.py\nindex 06a3a3f..36ef321 100644\n--- a/units.py\n+++ b/units.py\n@@ -3,7 +3,7 @@\n \n def to_celsius(fahrenheit):\n     \"\"\"Convert degrees Fahrenheit to degrees Celsius.\"\"\"\n-    return (fahrenheit - 32) * 5 / 8\n+    return (fahrenheit - 32) * 5 / 9\n \n \n def to_kmh(mph):\n",
+      "test_passed": true,
+      "sandbox_output": "..\n----------------------------------------------------------------------\nRan 2 tests in 0.000s\n\nOK\n",
+      "error": null,
+      "created_at": "2026-10-01T12:28:01.730111+00:00",
+      "updated_at": "2026-10-01T12:28:30.807478+00:00"
+     },
+     "run_events": [
+      {
+       "seq": 1,
+       "stage": "start",
+       "message": "Run started for task 51",
+       "created_at": "2026-10-01T12:28:01.752103+00:00"
+      },
+      {
+       "seq": 2,
+       "stage": "prepare",
+       "message": "Cloning https://github.com/krish1809/devpilot-demo.git @ fddab84c02fe4a3dd8ccc8ed0fe43198a202522b",
+       "created_at": "2026-10-01T12:28:01.798047+00:00"
+      },
+      {
+       "seq": 3,
+       "stage": "prepare",
+       "message": "Running baseline test: python -m unittest test_weather",
+       "created_at": "2026-10-01T12:28:03.022750+00:00"
+      },
+      {
+       "seq": 4,
+       "stage": "prepare",
+       "message": "Baseline test fails, as expected",
+       "created_at": "2026-10-01T12:28:04.778556+00:00"
+      },
+      {
+       "seq": 5,
+       "stage": "retrieve",
+       "message": "Indexing repository @ fddab84c02fe",
+       "created_at": "2026-10-01T12:28:04.790307+00:00"
+      },
+      {
+       "seq": 6,
+       "stage": "retrieve",
+       "message": "Indexed 5 files into 5 chunks in 0.5s",
+       "created_at": "2026-10-01T12:28:05.338350+00:00"
+      },
+      {
+       "seq": 7,
+       "stage": "retrieve",
+       "message": "Retrieved 5 chunks from 5 files; top candidates: weather.py, units.py, calculator.py",
+       "created_at": "2026-10-01T12:28:05.499004+00:00"
+      },
+      {
+       "seq": 8,
+       "stage": "plan",
+       "message": "Choosing the file to change and planning the fix",
+       "created_at": "2026-10-01T12:28:05.514103+00:00"
+      },
+      {
+       "seq": 9,
+       "stage": "plan",
+       "message": "Localized the fix to units.py",
+       "created_at": "2026-10-01T12:28:11.631676+00:00"
+      },
+      {
+       "seq": 10,
+       "stage": "code",
+       "message": "Attempt 1/3: writing the patch",
+       "created_at": "2026-10-01T12:28:11.647319+00:00"
+      },
+      {
+       "seq": 11,
+       "stage": "test",
+       "message": "Running `python -m unittest test_weather` in the sandbox",
+       "created_at": "2026-10-01T12:28:12.463814+00:00"
+      },
+      {
+       "seq": 12,
+       "stage": "test",
+       "message": "Test passed",
+       "created_at": "2026-10-01T12:28:14.022249+00:00"
+      },
+      {
+       "seq": 13,
+       "stage": "review",
+       "message": "Review passed (2 changed lines); waiting for human approval",
+       "created_at": "2026-10-01T12:28:14.043542+00:00"
+      },
+      {
+       "seq": 14,
+       "stage": "approve",
+       "message": "Run approved; resuming the graph to publish",
+       "created_at": "2026-10-01T12:28:26.485031+00:00"
+      },
+      {
+       "seq": 15,
+       "stage": "publish",
+       "message": "Opening pull request",
+       "created_at": "2026-10-01T12:28:26.509448+00:00"
+      },
+      {
+       "seq": 16,
+       "stage": "publish",
+       "message": "Opened PR: https://github.com/krish1809/devpilot-demo/pull/5",
+       "created_at": "2026-10-01T12:28:30.811714+00:00"
+      }
+     ],
+     "pull_requests": [
+      {
+       "url": "https://github.com/krish1809/devpilot-demo/pull/5",
+       "number": 5,
+       "status": "open",
+       "created_at": "2026-10-01T12:28:30.798959+00:00"
+      }
+     ],
+     "approvals": [
+      {
+       "decision": "approved",
+       "diff_sha256": "00ba7241acf83b072483bfca0208dc65f3a87fa262bd069aa5bd353b614e1712",
+       "base_commit": "fddab84c02fe4a3dd8ccc8ed0fe43198a202522b",
+       "created_at": "2026-10-01T12:28:26.472118+00:00"
+      }
+     ],
+     "llm_calls": [
+      {
+       "node": "plan",
+       "model": "openai/gpt-oss-120b",
+       "prompt_chars": 3411,
+       "prompt_tokens": 989,
+       "completion_tokens": 174,
+       "tokens_estimated": false,
+       "latency_ms": 6076,
+       "ok": true,
+       "error": null,
+       "created_at": "2026-10-01T12:28:11.602451+00:00"
+      },
+      {
+       "node": "code",
+       "model": "openai/gpt-oss-120b",
+       "prompt_chars": 3561,
+       "prompt_tokens": 1015,
+       "completion_tokens": 159,
+       "tokens_estimated": false,
+       "latency_ms": 775,
+       "ok": true,
+       "error": null,
+       "created_at": "2026-10-01T12:28:12.430888+00:00"
+      }
+     ],
+     "tool_calls": [
+      {
+       "tool": "run_tests",
+       "arguments": {
+        "command": "python -m unittest test_weather"
+       },
+       "allowed": true,
+       "ok": true,
+       "detail": null,
+       "output_chars": 713,
+       "latency_ms": 667,
+       "created_at": "2026-10-01T12:28:04.570965+00:00"
+      },
+      {
+       "tool": "run_tests",
+       "arguments": {
+        "command": "python -m unittest test_weather"
+       },
+       "allowed": true,
+       "ok": true,
+       "detail": null,
+       "output_chars": 171,
+       "latency_ms": 539,
+       "created_at": "2026-10-01T12:28:13.813981+00:00"
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "evals": [
+  {
+   "eval_run": {
+    "name": "lite-s20-seed7-v1-nogate",
+    "dataset": "SWE-bench/SWE-bench_Lite",
+    "split": "test",
+    "instance_ids": [
+     "django__django-11620",
+     "django__django-11848",
+     "django__django-12113",
+     "django__django-12453",
+     "django__django-12497",
+     "django__django-12915",
+     "django__django-13028",
+     "django__django-13158",
+     "django__django-14672",
+     "django__django-16379",
+     "matplotlib__matplotlib-23299",
+     "pylint-dev__pylint-7228",
+     "scikit-learn__scikit-learn-11040",
+     "scikit-learn__scikit-learn-15535",
+     "sphinx-doc__sphinx-8282",
+     "sphinx-doc__sphinx-8801",
+     "sympy__sympy-16988",
+     "sympy__sympy-19487",
+     "sympy__sympy-21055",
+     "sympy__sympy-24213"
+    ],
+    "configs": [
+     "rag",
+     "oracle-file",
+     "oracle-file+rag"
+    ],
+    "model": "openai/gpt-oss-120b",
+    "settings": {
+     "n": 20,
+     "seed": 7,
+     "rag_max_files": 4000,
+     "rag_max_chunks": 12000,
+     "embedding_model": "BAAI/bge-small-en-v1.5",
+     "agent_issue_chars": 4000,
+     "rag_context_chars": 5000,
+     "agent_max_attempts": 3,
+     "agent_excerpt_chars": 5000,
+     "rag_candidate_files": 8,
+     "agent_whole_file_chars": 6000,
+     "agent_run_timeout_seconds": 1800
+    },
+    "notes": "v1 agent (before the Python syntax gate). Stopped after 6 instances; kept as an ablation.",
+    "created_at": "2026-10-01T11:16:17.385565+00:00"
+   },
+   "results": [
+    {
+     "instance_id": "django__django-11620",
+     "repo": "django/django",
+     "config": "oracle-file",
+     "status": "error",
+     "patch": null,
+     "target_path": "django/views/debug.py",
+     "gold_path": "django/views/debug.py",
+     "localized": true,
+     "resolved": false,
+     "score_detail": {
+      "reason": "no patch"
+     },
+     "error": "No applicable edit after 3 attempt(s): SEARCH block not found in the file (it must be copied exactly): 'def get_exception_response(request, exception):'",
+     "llm_calls": 4,
+     "prompt_tokens": 7150,
+     "completion_tokens": 4791,
+     "seconds": 95.0,
+     "created_at": "2026-10-01T11:26:06.874986+00:00",
+     "scored_at": "2026-10-01T11:53:14.337146+00:00"
+    },
+    {
+     "instance_id": "django__django-11620",
+     "repo": "django/django",
+     "config": "rag",
+     "status": "error",
+     "patch": null,
+     "target_path": "django/urls/resolvers.py",
+     "gold_path": "django/views/debug.py",
+     "localized": false,
+     "resolved": false,
+     "score_detail": {
+      "reason": "no patch"
+     },
+     "error": "No applicable edit after 3 attempt(s): SEARCH block not found in the file (it must be copied exactly): 'for name, value in match.groupdict().items():'",
+     "llm_calls": 4,
+     "prompt_tokens": 9662,
+     "completion_tokens": 4248,
+     "seconds": 159.3,
+     "created_at": "2026-10-01T11:23:27.593755+00:00",
+     "scored_at": "2026-10-01T11:54:19.030149+00:00"
+    },
+    {
+     "instance_id": "django__django-11848",
+     "repo": "django/django",
+     "config": "oracle-file",
+     "status": "validated",
+     "patch": "diff --git a/django/utils/http.py b/django/utils/http.py\nindex 572cfb4..a70ae6b 100644\n--- a/django/utils/http.py\n+++ b/django/utils/http.py\n@@ -173,20 +173,24 @@ def parse_http_date(date):\n             break\n     else:\n         raise ValueError(\"%r is not in a valid HTTP date format\" % date)\n-    try:\n-        year = int(m.group('year'))\n-        if year < 100:\n-            if year < 70:\n-                year += 2000\n-            else:\n-                year += 1900\n-        month = MONTHS.index(m.group('mon').lower()) + 1\n-        day = int(m.group('day'))\n-        hour = int(m.group('hour'))\n-        min = int(m.group('min'))\n-        sec = int(m.group('sec'))\n-        result = datetime.datetime(year, month, day, hour, min, sec)\n-        return calendar.timegm(result.utctimetuple())\n+        try:\n+            year = int(m.group('year'))\n+            if year < 100:\n+                # RFC 7231 requires interpreting two\u2011digit years relative to the\n+                # current year: choose the most recent year with the same last\n+                # two digits that is not more than 50 years in the future.\n+                now_year = datetime.datetime.utcnow().year\n+                candidate = (now_year // 100) * 100 + year\n+                if candidate - now_year > 50:\n+                    candidate -= 100\n+                year = candidate\n+            month = MONTHS.index(m.group('mon').lower()) + 1\n+            day = int(m.group('day'))\n+            hour = int(m.group('hour'))\n+            min = int(m.group('min'))\n+            sec = int(m.group('sec'))\n+            result = datetime.datetime(year, month, day, hour, min, sec)\n+            return calendar.timegm(result.utctimetuple())\n     except Exception as exc:\n         raise ValueError(\"%r is not a valid date\" % date) from exc\n \n",
+     "target_path": "django/utils/http.py",
+     "gold_path": "django/utils/http.py",
+     "localized": true,
+     "resolved": false,
+     "score_detail": {
+      "tests_status": {},
+      "infra_failure": null,
+      "patch_applied": false
+     },
+     "error": null,
+     "llm_calls": 2,
+     "prompt_tokens": 3131,
+     "completion_tokens": 1330,
+     "seconds": 23.5,
+     "created_at": "2026-10-01T11:31:45.143018+00:00",
+     "scored_at": "2026-10-01T11:56:01.618877+00:00"
+    },
+    {
+     "instance_id": "django__django-11848",
+     "repo": "django/django",
+     "config": "oracle-file+rag",
+     "status": "validated",
+     "patch": "diff --git a/django/utils/http.py b/django/utils/http.py\nindex 572cfb4..f510552 100644\n--- a/django/utils/http.py\n+++ b/django/utils/http.py\n@@ -173,14 +173,18 @@ def parse_http_date(date):\n             break\n     else:\n         raise ValueError(\"%r is not in a valid HTTP date format\" % date)\n-    try:\n-        year = int(m.group('year'))\n-        if year < 100:\n-            if year < 70:\n-                year += 2000\n-            else:\n-                year += 1900\n-        month = MONTHS.index(m.group('mon').lower()) + 1\n+        try:\n+            year = int(m.group('year'))\n+            if year < 100:\n+                # Adjust two\u2011digit years according to RFC\u202f7231:\n+                # If the resulting year would be more than 50 years in the future,\n+                # interpret it as the most recent past year with the same suffix.\n+                now_year = datetime.datetime.utcnow().year\n+                candidate = (now_year // 100) * 100 + year\n+                if candidate - now_year > 50:\n+                    candidate -= 100\n+                year = candidate\n+            month = MONTHS.index(m.group('mon').lower()) + 1\n         day = int(m.group('day'))\n         hour = int(m.group('hour'))\n         min = int(m.group('min'))\n",
+     "target_path": "django/utils/http.py",
+     "gold_path": "django/utils/http.py",
+     "localized": true,
+     "resolved": false,
+     "score_detail": {
+      "tests_status": {},
+      "infra_failure": null,
+      "patch_applied": false
+     },
+     "error": null,
+     "llm_calls": 2,
+     "prompt_tokens": 5678,
+     "completion_tokens": 1444,
+     "seconds": 60.6,
+     "created_at": "2026-10-01T11:32:08.605315+00:00",
+     "scored_at": "2026-10-01T11:56:28.228496+00:00"
+    },
+    {
+     "instance_id": "django__django-12453",
+     "repo": "django/django",
+     "config": "oracle-file+rag",
+     "status": "validated",
+     "patch": "diff --git a/django/db/backends/base/creation.py b/django/db/backends/base/creation.py\nindex c50fc90..7a1bfbf 100644\n--- a/django/db/backends/base/creation.py\n+++ b/django/db/backends/base/creation.py\n@@ -5,7 +5,7 @@ from io import StringIO\n from django.apps import apps\n from django.conf import settings\n from django.core import serializers\n-from django.db import router\n+from django.db import router, transaction\n \n # The prefix to put on the default database name when creating\n # the test database.\n",
+     "target_path": "django/db/backends/base/creation.py",
+     "gold_path": "django/db/backends/base/creation.py",
+     "localized": true,
+     "resolved": false,
+     "score_detail": {
+      "tests_status": {
+       "FAIL_TO_FAIL": {
+        "failure": 0,
+        "success": 0
+       },
+       "FAIL_TO_PASS": {
+        "failure": 1,
+        "success": 0
+       },
+       "PASS_TO_FAIL": {
+        "failure": 0,
+        "success": 0
+       },
+       "PASS_TO_PASS": {
+        "failure": 0,
+        "success": 5
+       }
+      },
+      "infra_failure": null,
+      "patch_applied": true
+     },
+     "error": null,
+     "llm_calls": 2,
+     "prompt_tokens": 5536,
+     "completion_tokens": 840,
+     "seconds": 41.8,
+     "created_at": "2026-10-01T11:39:18.006242+00:00",
+     "scored_at": "2026-10-01T12:07:44.969345+00:00"
+    },
+    {
+     "instance_id": "django__django-12453",
+     "repo": "django/django",
+     "config": "rag",
+     "status": "validated",
+     "patch": "diff --git a/django/db/backends/base/creation.py b/django/db/backends/base/creation.py\nindex c50fc90..5cf1f5b 100644\n--- a/django/db/backends/base/creation.py\n+++ b/django/db/backends/base/creation.py\n@@ -5,7 +5,7 @@ from io import StringIO\n from django.apps import apps\n from django.conf import settings\n from django.core import serializers\n-from django.db import router\n+from django.db import router, transaction\n \n # The prefix to put on the default database name when creating\n # the test database.\n@@ -126,8 +126,9 @@ class BaseDatabaseCreation:\n         the serialize_db_to_string() method.\n         \"\"\"\n         data = StringIO(data)\n-        for obj in serializers.deserialize(\"json\", data, using=self.connection.alias):\n-            obj.save()\n+        with transaction.atomic(using=self.connection.alias):\n+            for obj in serializers.deserialize(\"json\", data, using=self.connection.alias):\n+                obj.save()\n \n     def _get_database_display_str(self, verbosity, database_name):\n         \"\"\"\n",
+     "target_path": "django/db/backends/base/creation.py",
+     "gold_path": "django/db/backends/base/creation.py",
+     "localized": true,
+     "resolved": true,
+     "score_detail": {
+      "tests_status": {
+       "FAIL_TO_FAIL": {
+        "failure": 0,
+        "success": 0
+       },
+       "FAIL_TO_PASS": {
+        "failure": 0,
+        "success": 1
+       },
+       "PASS_TO_FAIL": {
+        "failure": 0,
+        "success": 0
+       },
+       "PASS_TO_PASS": {
+        "failure": 0,
+        "success": 5
+       }
+      },
+      "infra_failure": null,
+      "patch_applied": true
+     },
+     "error": null,
+     "llm_calls": 2,
+     "prompt_tokens": 4669,
+     "completion_tokens": 803,
+     "seconds": 100.5,
+     "created_at": "2026-10-01T11:37:05.574017+00:00",
+     "scored_at": "2026-10-01T12:08:11.531320+00:00"
+    },
+    {
+     "instance_id": "django__django-12113",
+     "repo": "django/django",
+     "config": "oracle-file+rag",
+     "status": "validated",
+     "patch": "diff --git a/django/db/backends/sqlite3/creation.py b/django/db/backends/sqlite3/creation.py\nindex d97052f..6dfa4a0 100644\n--- a/django/db/backends/sqlite3/creation.py\n+++ b/django/db/backends/sqlite3/creation.py\n@@ -24,6 +24,8 @@ class DatabaseCreation(BaseDatabaseCreation):\n         test_database_name = self._get_test_db_name()\n \n         if keepdb:\n+            # Close any existing connection to avoid locking the persistent test DB.\n+            self.connection.close()\n             return test_database_name\n         if not self.is_in_memory_db(test_database_name):\n             # Erase the old test database\n@@ -46,6 +48,8 @@ class DatabaseCreation(BaseDatabaseCreation):\n                 else:\n                     self.log('Tests cancelled.')\n                     sys.exit(1)\n+        # Ensure the connection is closed before returning the test DB name.\n+        self.connection.close()\n         return test_database_name\n \n     def get_test_db_clone_settings(self, suffix):\n",
+     "target_path": "django/db/backends/sqlite3/creation.py",
+     "gold_path": "django/db/backends/sqlite3/creation.py",
+     "localized": true,
+     "resolved": false,
+     "score_detail": {
+      "tests_status": {
+       "FAIL_TO_FAIL": {
+        "failure": 0,
+        "success": 0
+       },
+       "FAIL_TO_PASS": {
+        "failure": 1,
+        "success": 0
+       },
+       "PASS_TO_FAIL": {
+        "failure": 0,
+        "success": 0
+       },
+       "PASS_TO_PASS": {
+        "failure": 0,
+        "success": 0
+       }
+      },
+      "infra_failure": null,
+      "patch_applied": true
+     },
+     "error": null,
+     "llm_calls": 2,
+     "prompt_tokens": 5950,
+     "completion_tokens": 3323,
+     "seconds": 64.7,
+     "created_at": "2026-10-01T11:35:55.269445+00:00",
+     "scored_at": "2026-10-01T12:01:50.089473+00:00"
+    },
+    {
+     "instance_id": "django__django-12497",
+     "repo": "django/django",
+     "config": "oracle-file",
+     "status": "validated",
+     "patch": "diff --git a/django/db/models/fields/related.py b/django/db/models/fields/related.py\nindex 8ddbb5b..536b3dd 100644\n--- a/django/db/models/fields/related.py\n+++ b/django/db/models/fields/related.py\n@@ -1309,7 +1309,7 @@ class ManyToManyField(RelatedField):\n                              \"through_fields keyword argument.\") % (self, from_model_name),\n                             hint=(\n                                 'If you want to create a recursive relationship, '\n-                                'use ForeignKey(\"%s\", symmetrical=False, through=\"%s\").'\n+                                'use ManyToManyField(\"%s\", through=\"%s\").'\n                             ) % (\n                                 RECURSIVE_RELATIONSHIP_CONSTANT,\n                                 relationship_model_name,\n@@ -1329,7 +1329,7 @@ class ManyToManyField(RelatedField):\n                             \"through_fields keyword argument.\" % (self, to_model_name),\n                             hint=(\n                                 'If you want to create a recursive relationship, '\n-                                'use ForeignKey(\"%s\", symmetrical=False, through=\"%s\").'\n+                                'use ManyToManyField(\"%s\", through=\"%s\").'\n                             ) % (\n                                 RECURSIVE_RELATIONSHIP_CONSTANT,\n                                 relationship_model_name,\n",
+     "target_path": "django/db/models/fields/related.py",
+     "gold_path": "django/db/models/fields/related.py",
+     "localized": true,
+     "resolved": true,
+     "score_detail": {
+      "tests_status": {
+       "FAIL_TO_FAIL": {
+        "failure": 0,
+        "success": 0
+       },
+       "FAIL_TO_PASS": {
+        "failure": 0,
+        "success": 2
+       },
+       "PASS_TO_FAIL": {
+        "failure": 0,
+        "success": 0
+       },
+       "PASS_TO_PASS": {
+        "failure": 0,
+        "success": 82
+       }
+      },
+      "infra_failure": null,
+      "patch_applied": true
+     },
+     "error": null,
+     "llm_calls": 3,
+     "prompt_tokens": 4552,
+     "completion_tokens": 3312,
+     "seconds": 55.5,
+     "created_at": "2026-10-01T11:42:42.971433+00:00",
+     "scored_at": "2026-10-01T12:03:49.660476+00:00"
+    },
+    {
+     "instance_id": "django__django-12497",
+     "repo": "django/django",
+     "config": "oracle-file+rag",
+     "status": "error",
+     "patch": null,
+     "target_path": "django/db/models/fields/related.py",
+     "gold_path": "django/db/models/fields/related.py",
+     "localized": true,
+     "resolved": false,
+     "score_detail": {
+      "reason": "no patch"
+     },
+     "error": "No applicable edit after 3 attempt(s): SEARCH block not found in the file (it must be copied exactly): 'if seen_from > 1 and not self.remote_field.through_fields:'",
+     "llm_calls": 4,
+     "prompt_tokens": 10797,
+     "completion_tokens": 3695,
+     "seconds": 112.3,
+     "created_at": "2026-10-01T11:43:38.519625+00:00",
+     "scored_at": "2026-10-01T12:03:49.666239+00:00"
+    },
+    {
+     "instance_id": "django__django-12497",
+     "repo": "django/django",
+     "config": "rag",
+     "status": "error",
+     "patch": null,
+     "target_path": "django/db/models/fields/reverse_related.py",
+     "gold_path": "django/db/models/fields/related.py",
+     "localized": false,
+     "resolved": false,
+     "score_detail": {
+      "reason": "no patch"
+     },
+     "error": "No applicable edit after 3 attempt(s): SEARCH block not found in the file (it must be copied exactly): 'hint=('",
+     "llm_calls": 4,
+     "prompt_tokens": 9954,
+     "completion_tokens": 3843,
+     "seconds": 156.4,
+     "created_at": "2026-10-01T11:40:06.543961+00:00",
+     "scored_at": "2026-10-01T12:03:49.670808+00:00"
+    },
+    {
+     "instance_id": "django__django-12915",
+     "repo": "django/django",
+     "config": "rag",
+     "status": "validated",
+     "patch": "diff --git a/django/contrib/staticfiles/handlers.py b/django/contrib/staticfiles/handlers.py\nindex 711d886..eb42387 100644\n--- a/django/contrib/staticfiles/handlers.py\n+++ b/django/contrib/staticfiles/handlers.py\n@@ -77,6 +77,7 @@ class ASGIStaticFilesHandler(StaticFilesHandlerMixin, ASGIHandler):\n     def __init__(self, application):\n         self.application = application\n         self.base_url = urlparse(self.get_base_url())\n+        super().__init__()\n \n     async def __call__(self, scope, receive, send):\n         # Only even look at HTTP requests\n",
+     "target_path": "django/contrib/staticfiles/handlers.py",
+     "gold_path": "django/contrib/staticfiles/handlers.py",
+     "localized": true,
+     "resolved": false,
+     "score_detail": {
+      "tests_status": {
+       "FAIL_TO_FAIL": {
+        "failure": 0,
+        "success": 0
+       },
+       "FAIL_TO_PASS": {
+        "failure": 3,
+        "success": 0
+       },
+       "PASS_TO_FAIL": {
+        "failure": 0,
+        "success": 0
+       },
+       "PASS_TO_PASS": {
+        "failure": 0,
+        "success": 8
+       }
+      },
+      "infra_failure": null,
+      "patch_applied": true
+     },
+     "error": null,
+     "llm_calls": 2,
+     "prompt_tokens": 3481,
+     "completion_tokens": 1642,
+     "seconds": 100.0,
+     "created_at": "2026-10-01T11:45:37.346362+00:00",
+     "scored_at": "2026-10-01T12:11:19.171648+00:00"
+    },
+    {
+     "instance_id": "django__django-11620",
+     "repo": "django/django",
+     "config": "oracle-file+rag",
+     "status": "validated",
+     "patch": "diff --git a/django/views/debug.py b/django/views/debug.py\nindex cb3e8c7..3fc05fb 100644\n--- a/django/views/debug.py\n+++ b/django/views/debug.py\n@@ -458,15 +458,38 @@ class ExceptionReporter:\n \n def technical_404_response(request, exception):\n     \"\"\"Create a technical 404 error response. `exception` is the Http404.\"\"\"\n-    try:\n-        error_url = exception.args[0]['path']\n-    except (IndexError, TypeError, KeyError):\n+    # ``Resolver404`` (the normal 404 raised by the URL resolver) carries a\n+    # dictionary as the first argument with ``path`` and ``tried`` keys.\n+    # When a plain ``Http404`` is raised (e.g. from a path converter) the\n+    # ``args`` attribute may be empty or contain a simple string.  In that\n+    # case we synthesize the expected structure so that the technical 404\n+    # page can still be rendered without causing a server\u2011error response.\n+    if hasattr(exception, 'args') and exception.args and isinstance(exception.args[0], dict):\n+        info = exception.args[0]\n+        error_url = info.get('path', request.path_info[1:])\n+        tried = info.get('tried', [])\n+    else:\n+        # Plain Http404 \u2013 construct a minimal ``info`` dict.\n         error_url = request.path_info[1:]  # Trim leading slash\n+        tried = []\n \n+    # If the URLconf is effectively empty (e.g. the admin default), fall back\n+    # to the default URLconf view.\n+    if (not tried or (                  # empty URLconf\n+        request.path == '/' and\n+        len(tried) == 1 and\n+        len(tried[0]) == 1 and\n+        getattr(tried[0][0], 'app_name', '') == getattr(tried[0][0], 'namespace', '') == 'admin'\n+    )):\n+        return default_urlconf(request)\n+\n+    urlconf = getattr(request, 'urlconf', settings.ROOT_URLCONF)\n+    if isinstance(urlconf, types.ModuleType):\n+        urlconf = urlconf.__name__\n+\n+    caller = ''\n     try:\n-        tried = exception.args[0]['tried']\n-    except (IndexError, TypeError, KeyError):\n-        tried = []\n+        resolver_match = resolve(request.path)\n     else:\n         if (not tried or (                  # empty URLconf\n             request.path == '/' and\n",
+     "target_path": "django/views/debug.py",
+     "gold_path": "django/views/debug.py",
+     "localized": true,
+     "resolved": false,
+     "score_detail": {
+      "tests_status": {},
+      "infra_failure": null,
+      "patch_applied": false
+     },
+     "error": null,
+     "llm_calls": 4,
+     "prompt_tokens": 10965,
+     "completion_tokens": 8339,
+     "seconds": 134.8,
+     "created_at": "2026-10-01T11:27:41.849624+00:00",
+     "scored_at": "2026-10-01T11:54:19.021124+00:00"
+    },
+    {
+     "instance_id": "django__django-11848",
+     "repo": "django/django",
+     "config": "rag",
+     "status": "validated",
+     "patch": "diff --git a/django/utils/http.py b/django/utils/http.py\nindex 572cfb4..533bb9f 100644\n--- a/django/utils/http.py\n+++ b/django/utils/http.py\n@@ -176,10 +176,16 @@ def parse_http_date(date):\n     try:\n         year = int(m.group('year'))\n         if year < 100:\n-            if year < 70:\n-                year += 2000\n-            else:\n-                year += 1900\n+            # Adjust two\u2011digit years according to RFC 7231 \u00a77.1.1.1.\n+            # If the year appears to be more than 50 years in the future,\n+            # interpret it as the most recent past year with the same\n+            # last two digits.\n+            now = datetime.datetime.utcnow()\n+            century = (now.year // 100) * 100\n+            candidate = century + year\n+            if candidate - now.year > 50:\n+                candidate -= 100\n+            year = candidate\n         month = MONTHS.index(m.group('mon').lower()) + 1\n         day = int(m.group('day'))\n         hour = int(m.group('hour'))\n",
+     "target_path": "django/utils/http.py",
+     "gold_path": "django/utils/http.py",
+     "localized": true,
+     "resolved": true,
+     "score_detail": {
+      "tests_status": {
+       "FAIL_TO_FAIL": {
+        "failure": 0,
+        "success": 0
+       },
+       "FAIL_TO_PASS": {
+        "failure": 0,
+        "success": 2
+       },
+       "PASS_TO_FAIL": {
+        "failure": 0,
+        "success": 0
+       },
+       "PASS_TO_PASS": {
+        "failure": 0,
+        "success": 43
+       }
+      },
+      "infra_failure": null,
+      "patch_applied": true
+     },
+     "error": null,
+     "llm_calls": 2,
+     "prompt_tokens": 3933,
+     "completion_tokens": 1272,
+     "seconds": 104.2,
+     "created_at": "2026-10-01T11:30:00.934559+00:00",
+     "scored_at": "2026-10-01T11:56:54.372119+00:00"
+    },
+    {
+     "instance_id": "django__django-12113",
+     "repo": "django/django",
+     "config": "oracle-file",
+     "status": "validated",
+     "patch": "diff --git a/django/db/backends/sqlite3/creation.py b/django/db/backends/sqlite3/creation.py\nindex d97052f..732ca16 100644\n--- a/django/db/backends/sqlite3/creation.py\n+++ b/django/db/backends/sqlite3/creation.py\n@@ -24,6 +24,11 @@ class DatabaseCreation(BaseDatabaseCreation):\n         test_database_name = self._get_test_db_name()\n \n         if keepdb:\n+            # Close any existing connection to avoid SQLite file lock issues.\n+            try:\n+                self.connection.close()\n+            except Exception:\n+                pass\n             return test_database_name\n         if not self.is_in_memory_db(test_database_name):\n             # Erase the old test database\n",
+     "target_path": "django/db/backends/sqlite3/creation.py",
+     "gold_path": "django/db/backends/sqlite3/creation.py",
+     "localized": true,
+     "resolved": false,
+     "score_detail": {
+      "tests_status": {
+       "FAIL_TO_FAIL": {
+        "failure": 0,
+        "success": 0
+       },
+       "FAIL_TO_PASS": {
+        "failure": 1,
+        "success": 0
+       },
+       "PASS_TO_FAIL": {
+        "failure": 0,
+        "success": 0
+       },
+       "PASS_TO_PASS": {
+        "failure": 0,
+        "success": 0
+       }
+      },
+      "infra_failure": null,
+      "patch_applied": true
+     },
+     "error": null,
+     "llm_calls": 2,
+     "prompt_tokens": 4438,
+     "completion_tokens": 2352,
+     "seconds": 49.2,
+     "created_at": "2026-10-01T11:35:06.049293+00:00",
+     "scored_at": "2026-10-01T12:06:11.698440+00:00"
+    },
+    {
+     "instance_id": "django__django-12113",
+     "repo": "django/django",
+     "config": "rag",
+     "status": "validated",
+     "patch": "diff --git a/django/db/backends/utils.py b/django/db/backends/utils.py\nindex 2416a45..6f7e58c 100644\n--- a/django/db/backends/utils.py\n+++ b/django/db/backends/utils.py\n@@ -77,13 +77,37 @@ class CursorWrapper:\n         return executor(sql, params, many, context)\n \n     def _execute(self, sql, params, *ignored_wrapper_args):\n+        \"\"\"\n+        Execute a single SQL statement, retrying on SQLite \"database is locked\"\n+        errors when using persistent test databases.\n+\n+        The number of retries and the delay between attempts can be\n+        configured via the Django settings ``SQLITE_LOCK_RETRY_COUNT`` and\n+        ``SQLITE_LOCK_RETRY_DELAY``.  By default, we retry up to 5 times with a\n+        0.1\u2011second pause between attempts.\n+        \"\"\"\n         self.db.validate_no_broken_transaction()\n-        with self.db.wrap_database_errors:\n-            if params is None:\n-                # params default might be backend specific.\n-                return self.cursor.execute(sql)\n-            else:\n-                return self.cursor.execute(sql, params)\n+        max_retries = getattr(settings, \"SQLITE_LOCK_RETRY_COUNT\", 5)\n+        delay = getattr(settings, \"SQLITE_LOCK_RETRY_DELAY\", 0.1)\n+        for attempt in range(max_retries + 1):\n+            try:\n+                with self.db.wrap_database_errors:\n+                    if params is None:\n+                        # params default might be backend specific.\n+                        return self.cursor.execute(sql)\n+                    else:\n+                        return self.cursor.execute(sql, params)\n+            except Exception as exc:  # pragma: no cover\n+                # Retry only for SQLite \"database is locked\" errors.\n+                if (\n+                    getattr(self.db, \"vendor\", None) == \"sqlite\"\n+                    and \"database is locked\" in str(exc).lower()\n+                ):\n+                    if attempt < max_retries:\n+                        time.sleep(delay)\n+                        continue\n+                # Re\u2011raise any other exception or if retries exhausted.\n+                raise\n \n     def _executemany(self, sql, param_list, *ignored_wrapper_args):\n         self.db.validate_no_broken_transaction()\n",
+     "target_path": "django/db/backends/utils.py",
+     "gold_path": "django/db/backends/sqlite3/creation.py",
+     "localized": false,
+     "resolved": false,
+     "score_detail": {
+      "tests_status": {
+       "FAIL_TO_FAIL": {
+        "failure": 0,
+        "success": 0
+       },
+       "FAIL_TO_PASS": {
+        "failure": 1,
+        "success": 0
+       },
+       "PASS_TO_FAIL": {
+        "failure": 0,
+        "success": 0
+       },
+       "PASS_TO_PASS": {
+        "failure": 0,
+        "success": 0
+       }
+      },
+      "infra_failure": null,
+      "patch_applied": true
+     },
+     "error": null,
+     "llm_calls": 2,
+     "prompt_tokens": 5138,
+     "completion_tokens": 1878,
+     "seconds": 112.7,
+     "created_at": "2026-10-01T11:33:13.335371+00:00",
+     "scored_at": "2026-10-01T12:02:17.632788+00:00"
+    },
+    {
+     "instance_id": "django__django-12453",
+     "repo": "django/django",
+     "config": "oracle-file",
+     "status": "validated",
+     "patch": "diff --git a/django/db/backends/base/creation.py b/django/db/backends/base/creation.py\nindex c50fc90..5cf1f5b 100644\n--- a/django/db/backends/base/creation.py\n+++ b/django/db/backends/base/creation.py\n@@ -5,7 +5,7 @@ from io import StringIO\n from django.apps import apps\n from django.conf import settings\n from django.core import serializers\n-from django.db import router\n+from django.db import router, transaction\n \n # The prefix to put on the default database name when creating\n # the test database.\n@@ -126,8 +126,9 @@ class BaseDatabaseCreation:\n         the serialize_db_to_string() method.\n         \"\"\"\n         data = StringIO(data)\n-        for obj in serializers.deserialize(\"json\", data, using=self.connection.alias):\n-            obj.save()\n+        with transaction.atomic(using=self.connection.alias):\n+            for obj in serializers.deserialize(\"json\", data, using=self.connection.alias):\n+                obj.save()\n \n     def _get_database_display_str(self, verbosity, database_name):\n         \"\"\"\n",
+     "target_path": "django/db/backends/base/creation.py",
+     "gold_path": "django/db/backends/base/creation.py",
+     "localized": true,
+     "resolved": true,
+     "score_detail": {
+      "tests_status": {
+       "FAIL_TO_FAIL": {
+        "failure": 0,
+        "success": 0
+       },
+       "FAIL_TO_PASS": {
+        "failure": 0,
+        "success": 1
+       },
+       "PASS_TO_FAIL": {
+        "failure": 0,
+        "success": 0
+       },
+       "PASS_TO_PASS": {
+        "failure": 0,
+        "success": 5
+       }
+      },
+      "infra_failure": null,
+      "patch_applied": true
+     },
+     "error": null,
+     "llm_calls": 2,
+     "prompt_tokens": 3530,
+     "completion_tokens": 588,
+     "seconds": 31.9,
+     "created_at": "2026-10-01T11:38:46.105213+00:00",
+     "scored_at": "2026-10-01T12:07:18.335937+00:00"
+    },
+    {
+     "instance_id": "django__django-12915",
+     "repo": "django/django",
+     "config": "oracle-file",
+     "status": "validated",
+     "patch": "diff --git a/django/contrib/staticfiles/handlers.py b/django/contrib/staticfiles/handlers.py\nindex 711d886..9db4d33 100644\n--- a/django/contrib/staticfiles/handlers.py\n+++ b/django/contrib/staticfiles/handlers.py\n@@ -52,6 +52,12 @@ class StaticFilesHandlerMixin:\n         except Http404 as e:\n             return response_for_exception(request, e)\n \n+    async def get_response_async(self, request):\n+        try:\n+            return self.serve(request)\n+        except Http404 as e:\n+            return response_for_exception(request, e)\n+\n \n class StaticFilesHandler(StaticFilesHandlerMixin, WSGIHandler):\n     \"\"\"\n",
+     "target_path": "django/contrib/staticfiles/handlers.py",
+     "gold_path": "django/contrib/staticfiles/handlers.py",
+     "localized": true,
+     "resolved": true,
+     "score_detail": {
+      "tests_status": {
+       "FAIL_TO_FAIL": {
+        "failure": 0,
+        "success": 0
+       },
+       "FAIL_TO_PASS": {
+        "failure": 0,
+        "success": 3
+       },
+       "PASS_TO_FAIL": {
+        "failure": 0,
+        "success": 0
+       },
+       "PASS_TO_PASS": {
+        "failure": 0,
+        "success": 8
+       }
+      },
+      "infra_failure": null,
+      "patch_applied": true
+     },
+     "error": null,
+     "llm_calls": 2,
+     "prompt_tokens": 2463,
+     "completion_tokens": 1505,
+     "seconds": 21.9,
+     "created_at": "2026-10-01T11:47:17.314227+00:00",
+     "scored_at": "2026-10-01T12:10:20.550532+00:00"
+    },
+    {
+     "instance_id": "django__django-12915",
+     "repo": "django/django",
+     "config": "oracle-file+rag",
+     "status": "validated",
+     "patch": "diff --git a/django/contrib/staticfiles/handlers.py b/django/contrib/staticfiles/handlers.py\nindex 711d886..f8a66cf 100644\n--- a/django/contrib/staticfiles/handlers.py\n+++ b/django/contrib/staticfiles/handlers.py\n@@ -18,7 +18,7 @@ class StaticFilesHandlerMixin:\n     # request_finished signal)\n     handles_files = True\n \n-    def load_middleware(self):\n+    def load_middleware(self, *args, **kwargs):\n         # Middleware are already loaded for self.application; no need to reload\n         # them for self.\n         pass\n@@ -77,6 +77,7 @@ class ASGIStaticFilesHandler(StaticFilesHandlerMixin, ASGIHandler):\n     def __init__(self, application):\n         self.application = application\n         self.base_url = urlparse(self.get_base_url())\n+        super().__init__()\n \n     async def __call__(self, scope, receive, send):\n         # Only even look at HTTP requests\n",
+     "target_path": "django/contrib/staticfiles/handlers.py",
+     "gold_path": "django/contrib/staticfiles/handlers.py",
+     "localized": true,
+     "resolved": false,
+     "score_detail": {
+      "tests_status": {
+       "FAIL_TO_FAIL": {
+        "failure": 0,
+        "success": 0
+       },
+       "FAIL_TO_PASS": {
+        "failure": 3,
+        "success": 0
+       },
+       "PASS_TO_FAIL": {
+        "failure": 0,
+        "success": 0
+       },
+       "PASS_TO_PASS": {
+        "failure": 0,
+        "success": 8
+       }
+      },
+      "infra_failure": null,
+      "patch_applied": true
+     },
+     "error": null,
+     "llm_calls": 2,
+     "prompt_tokens": 4390,
+     "completion_tokens": 1883,
+     "seconds": 39.5,
+     "created_at": "2026-10-01T11:47:39.237963+00:00",
+     "scored_at": "2026-10-01T12:10:50.316803+00:00"
+    }
+   ]
+  },
+  {
+   "eval_run": {
+    "name": "lite-s20-seed7",
+    "dataset": "SWE-bench/SWE-bench_Lite",
+    "split": "test",
+    "instance_ids": [
+     "django__django-11620",
+     "django__django-11848",
+     "django__django-12113",
+     "django__django-12453",
+     "django__django-12497",
+     "django__django-12915",
+     "django__django-13028",
+     "django__django-13158",
+     "django__django-14672",
+     "django__django-16379",
+     "matplotlib__matplotlib-23299",
+     "pylint-dev__pylint-7228",
+     "scikit-learn__scikit-learn-11040",
+     "scikit-learn__scikit-learn-15535",
+     "sphinx-doc__sphinx-8282",
+     "sphinx-doc__sphinx-8801",
+     "sympy__sympy-16988",
+     "sympy__sympy-19487",
+     "sympy__sympy-21055",
+     "sympy__sympy-24213"
+    ],
+    "configs": [
+     "rag",
+     "oracle-file",
+     "oracle-file+rag"
+    ],
+    "model": "openai/gpt-oss-120b",
+    "settings": {
+     "n": 20,
+     "seed": 7,
+     "rag_max_files": 4000,
+     "rag_max_chunks": 12000,
+     "embedding_model": "BAAI/bge-small-en-v1.5",
+     "agent_issue_chars": 4000,
+     "rag_context_chars": 5000,
+     "agent_max_attempts": 3,
+     "agent_excerpt_chars": 5000,
+     "rag_candidate_files": 8,
+     "agent_whole_file_chars": 6000,
+     "agent_run_timeout_seconds": 1800
+    },
+    "notes": null,
+    "created_at": "2026-10-01T12:11:22.723802+00:00"
+   },
+   "results": [
+    {
+     "instance_id": "django__django-11620",
+     "repo": "django/django",
+     "config": "rag",
+     "status": "validated",
+     "patch": "diff --git a/django/urls/resolvers.py b/django/urls/resolvers.py\nindex 2154a46..885aaf2 100644\n--- a/django/urls/resolvers.py\n+++ b/django/urls/resolvers.py\n@@ -8,6 +8,7 @@ attributes of the resolved URL match.\n import functools\n import inspect\n import re\n+from django.http import Http404\n from importlib import import_module\n from urllib.parse import quote\n \n",
+     "target_path": "django/urls/resolvers.py",
+     "gold_path": "django/views/debug.py",
+     "localized": false,
+     "resolved": false,
+     "score_detail": {
+      "tests_status": {
+       "FAIL_TO_FAIL": {
+        "failure": 0,
+        "success": 0
+       },
+       "FAIL_TO_PASS": {
+        "failure": 1,
+        "success": 0
+       },
+       "PASS_TO_FAIL": {
+        "failure": 0,
+        "success": 0
+       },
+       "PASS_TO_PASS": {
+        "failure": 0,
+        "success": 66
+       }
+      },
+      "infra_failure": null,
+      "patch_applied": true
+     },
+     "error": null,
+     "llm_calls": 2,
+     "prompt_tokens": 3874,
+     "completion_tokens": 1608,
+     "seconds": 6.5,
+     "created_at": "2026-10-01T14:13:43.382961+00:00",
+     "scored_at": "2026-10-01T14:15:28.332966+00:00"
+    },
+    {
+     "instance_id": "django__django-11620",
+     "repo": "django/django",
+     "config": "gold",
+     "status": "reference",
+     "patch": "diff --git a/django/views/debug.py b/django/views/debug.py\n--- a/django/views/debug.py\n+++ b/django/views/debug.py\n@@ -5,10 +5,10 @@\n from pathlib import Path\n \n from django.conf import settings\n-from django.http import HttpResponse, HttpResponseNotFound\n+from django.http import Http404, HttpResponse, HttpResponseNotFound\n from django.template import Context, Engine, TemplateDoesNotExist\n from django.template.defaultfilters import pprint\n-from django.urls import Resolver404, resolve\n+from django.urls import resolve\n from django.utils import timezone\n from django.utils.datastructures import MultiValueDict\n from django.utils.encoding import force_str\n@@ -483,7 +483,7 @@ def technical_404_response(request, exception):\n     caller = ''\n     try:\n         resolver_match = resolve(request.path)\n-    except Resolver404:\n+    except Http404:\n         pass\n     else:\n         obj = resolver_match.func\n",
+     "target_path": "django/views/debug.py",
+     "gold_path": "django/views/debug.py",
+     "localized": true,
+     "resolved": true,
+     "score_detail": {
+      "tests_status": {
+       "FAIL_TO_FAIL": {
+        "failure": 0,
+        "success": 0
+       },
+       "FAIL_TO_PASS": {
+        "failure": 0,
+        "success": 1
+       },
+       "PASS_TO_FAIL": {
+        "failure": 0,
+        "success": 0
+       },
+       "PASS_TO_PASS": {
+        "failure": 0,
+        "success": 66
+       }
+      },
+      "infra_failure": null,
+      "patch_applied": true
+     },
+     "error": null,
+     "llm_calls": 0,
+     "prompt_tokens": 0,
+     "completion_tokens": 0,
+     "seconds": 0.0,
+     "created_at": "2026-10-01T14:13:50.877381+00:00",
+     "scored_at": "2026-10-01T14:15:00.052112+00:00"
+    },
+    {
+     "instance_id": "django__django-11620",
+     "repo": "django/django",
+     "config": "oracle-file",
+     "status": "validated",
+     "patch": "diff --git a/django/views/debug.py b/django/views/debug.py\nindex cb3e8c7..0141d0f 100644\n--- a/django/views/debug.py\n+++ b/django/views/debug.py\n@@ -9,6 +9,7 @@ from django.http import HttpResponse, HttpResponseNotFound\n from django.template import Context, Engine, TemplateDoesNotExist\n from django.template.defaultfilters import pprint\n from django.urls import Resolver404, resolve\n+from django.http import Http404\n from django.utils import timezone\n from django.utils.datastructures import MultiValueDict\n from django.utils.encoding import force_str\n",
+     "target_path": "django/views/debug.py",
+     "gold_path": "django/views/debug.py",
+     "localized": true,
+     "resolved": false,
+     "score_detail": {
+      "tests_status": {
+       "FAIL_TO_FAIL": {
+        "failure": 0,
+        "success": 0
+       },
+       "FAIL_TO_PASS": {
+        "failure": 1,
+        "success": 0
+       },
+       "PASS_TO_FAIL": {
+        "failure": 0,
+        "success": 0
+       },
+       "PASS_TO_PASS": {
+        "failure": 0,
+        "success": 66
+       }
+      },
+      "infra_failure": null,
+      "patch_applied": true
+     },
+     "error": null,
+     "llm_calls": 2,
+     "prompt_tokens": 3196,
+     "completion_tokens": 1460,
+     "seconds": 5.6,
+     "created_at": "2026-10-01T17:46:10.808873+00:00",
+     "scored_at": "2026-10-01T17:48:14.942873+00:00"
+    }
+   ]
+  }
+ ]
+}

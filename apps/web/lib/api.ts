@@ -127,6 +127,12 @@ export const api = {
 
   me: (token?: string) => request<User>("/api/v1/auth/me", { token }),
 
+  /** Public flags (e.g. read-only showcase mode). */
+  getConfig: () => request<{ demo_mode: boolean }>("/api/v1/config"),
+
+  /** Showcase only: a session as the read-only demo user. */
+  demoLogin: () => request<Token>("/api/v1/auth/demo", { method: "POST" }),
+
   listProjects: () => request<Project[]>("/api/v1/projects"),
 
   createProject: (input: ProjectCreateInput) =>

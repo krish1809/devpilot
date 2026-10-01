@@ -10,7 +10,12 @@ import { Select } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import type { EvalConfigSummary, EvalResult, EvalRunDetail, EvalRunSummary } from "@/lib/types";
+import type {
+  EvalConfigSummary,
+  EvalResult,
+  EvalRunDetail,
+  EvalRunSummary,
+} from "@/lib/types";
 import { formatDate } from "@/lib/utils";
 
 const CONFIG_LABELS: Record<string, string> = {
@@ -72,7 +77,8 @@ export default function EvalsPage() {
           <FlaskConical className="h-6 w-6 text-primary" /> Benchmarks
         </h1>
         <p className="text-sm text-muted-foreground">
-          DevPilot on SWE-bench Lite, scored with the official SWE-bench harness. Produced by{" "}
+          DevPilot on SWE-bench Lite, scored with the official SWE-bench
+          harness. Produced by{" "}
           <span className="font-mono">python -m scripts.swebench_eval</span>.
         </p>
       </div>
@@ -98,7 +104,8 @@ export default function EvalsPage() {
               >
                 {runs.map((r) => (
                   <option key={r.id} value={r.id}>
-                    {r.name} · {r.instance_count} instances · {formatDate(r.created_at)}
+                    {r.name} · {r.instance_count} instances ·{" "}
+                    {formatDate(r.created_at)}
                   </option>
                 ))}
               </Select>
@@ -119,17 +126,21 @@ export default function EvalsPage() {
 
 function RunDetail({ run }: { run: EvalRunDetail }) {
   const seed = run.settings["seed"];
+  const attempted = new Set(
+    run.results.filter((r) => r.config !== "gold").map((r) => r.instance_id),
+  ).size;
   return (
     <>
       <Card>
         <CardHeader>
           <CardTitle className="text-base">
-            {run.name} — {run.instance_count} instances
+            {run.name} — {attempted} of {run.instance_count} sampled instances
+            attempted
             {seed !== undefined && ` (seed ${String(seed)})`}
           </CardTitle>
           <p className="text-xs text-muted-foreground">
-            {run.dataset} · model <span className="font-mono">{run.model}</span> · the agent
-            never sees the benchmark&apos;s tests
+            {run.dataset} · model <span className="font-mono">{run.model}</span>{" "}
+            · the agent never sees the benchmark&apos;s tests
           </p>
         </CardHeader>
         <CardContent className="overflow-x-auto">
@@ -165,7 +176,9 @@ function SummaryRow({ s }: { s: EvalConfigSummary }) {
       <td className="py-2 pr-3 font-mono">
         {s.resolved}/{s.scored}
         {s.scored < s.generated && (
-          <span className="ml-1 text-xs text-muted-foreground">({s.generated - s.scored} unscored)</span>
+          <span className="ml-1 text-xs text-muted-foreground">
+            ({s.generated - s.scored} unscored)
+          </span>
         )}
       </td>
       <td className="py-2 pr-3">
@@ -179,7 +192,9 @@ function SummaryRow({ s }: { s: EvalConfigSummary }) {
       <td className="py-2 pr-3 font-mono">
         {s.localized}/{s.generated}
       </td>
-      <td className="py-2 pr-3 font-mono">{Math.round(s.avg_tokens).toLocaleString()}</td>
+      <td className="py-2 pr-3 font-mono">
+        {Math.round(s.avg_tokens).toLocaleString()}
+      </td>
       <td className="py-2 font-mono">{Math.round(s.avg_seconds)}s</td>
     </tr>
   );
@@ -224,8 +239,14 @@ function ResultsMatrix({ run }: { run: EvalRunDetail }) {
                           className="text-left hover:underline"
                           title={r.error ?? r.status}
                         >
-                          {r.resolved === true ? "✅" : r.resolved === false ? "❌" : "·"}{" "}
-                          <span className="text-xs text-muted-foreground">{r.status}</span>
+                          {r.resolved === true
+                            ? "✅"
+                            : r.resolved === false
+                              ? "❌"
+                              : "·"}{" "}
+                          <span className="text-xs text-muted-foreground">
+                            {r.status}
+                          </span>
                         </button>
                       ) : (
                         <span className="text-muted-foreground">—</span>
@@ -238,15 +259,19 @@ function ResultsMatrix({ run }: { run: EvalRunDetail }) {
           </tbody>
         </table>
         <p className="text-xs text-muted-foreground">
-          ✅ resolved · ❌ not resolved · · not scored yet · — not run. Click a cell for its patch.
+          ✅ resolved · ❌ not resolved · · not scored yet · — not run. Click a
+          cell for its patch.
         </p>
         {open && (
           <div className="space-y-2 rounded-md border border-border p-3 text-sm">
             <p>
-              <span className="font-mono">{open.instance_id}</span> · {open.config} · edited{" "}
+              <span className="font-mono">{open.instance_id}</span> ·{" "}
+              {open.config} · edited{" "}
               <span className="font-mono">{open.target_path ?? "—"}</span> (gold{" "}
-              <span className="font-mono">{open.gold_path}</span>) · {open.llm_calls} LLM calls ·{" "}
-              {(open.prompt_tokens + open.completion_tokens).toLocaleString()} tokens
+              <span className="font-mono">{open.gold_path}</span>) ·{" "}
+              {open.llm_calls} LLM calls ·{" "}
+              {(open.prompt_tokens + open.completion_tokens).toLocaleString()}{" "}
+              tokens
             </p>
             {open.error && <ErrorAlert message={open.error} />}
             {open.patch ? (

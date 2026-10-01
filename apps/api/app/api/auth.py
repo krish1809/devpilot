@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from app.api.deps import CurrentUser, DbSession
 from app.core.config import get_settings
+from app.core.demo import get_or_create_demo_user
 from app.core.rate_limit import rate_limiter
 from app.core.security import create_access_token
 from app.schemas.user import Token, UserCreate, UserLogin, UserResponse
@@ -78,6 +79,19 @@ def login(credentials: UserLogin, db: DbSession, request: Request) -> Token:
         user_id=user.id,
         ip_address=ip,
     )
+    return Token(access_token=create_access_token(subject=str(user.id)))
+
+
+@router.post(
+    "/demo",
+    response_model=Token,
+    dependencies=[Depends(rate_limiter("auth:demo", *_auth_limit))],
+)
+def demo_login(db: DbSession) -> Token:
+    """Showcase only: sign in as the read-only demo user (404 otherwise)."""
+    if not get_settings().demo_mode:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+    user = get_or_create_demo_user(db)
     return Token(access_token=create_access_token(subject=str(user.id)))
 
 

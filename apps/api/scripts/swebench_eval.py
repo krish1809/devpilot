@@ -140,11 +140,13 @@ def render_markdown(
     run: EvalRun, summary: list[dict], results: list[EvalResult], configs: list[str]
 ) -> str:
     s = run.settings
+    attempted = len({r.instance_id for r in results if r.config != "gold"})
     lines = [
         f"# SWE-bench Lite — DevPilot ({run.name})",
         "",
         f"Seeded random sample of **{len(run.instance_ids)}** of the 300 SWE-bench Lite "
-        f"test instances (seed {s.get('seed')}), LLM `{run.model}` (Groq free tier), "
+        f"test instances (seed {s.get('seed')}); **{attempted} attempted so far**. "
+        f"LLM `{run.model}` (Groq free tier), "
         f"embeddings `{s.get('embedding_model')}`. Patches scored with the **official "
         "SWE-bench harness** (`swebench.harness.run_evaluation`): an instance is resolved "
         "only if all FAIL_TO_PASS and PASS_TO_PASS tests pass.",

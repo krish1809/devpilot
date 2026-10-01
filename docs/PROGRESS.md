@@ -25,7 +25,7 @@ Phase 9 has a CI seed only.
 | 6 | Repository RAG | ✅ Done | pgvector + FTS hybrid retrieval, file localization; smoke eval: root-cause localization 5/5 with RAG vs 2/5 without ([eval/phase6-rag.md](eval/phase6-rag.md)) |
 | 7 | Evaluation on SWE-bench Lite | 🟡 Running | Harness + official scoring + results UI built; v2 20-instance seeded run in progress unattended (Groq: 200k tokens/day), v1 kept as ablation ([eval/README.md](eval/README.md)) |
 | 8 | One MCP server + observability | ✅ Done | `devpilot-tools` MCP server (per-run binding, permission policy, audit log; the agent's sandbox runs go through it), LLM/tool-call tracing + UI, prompt-injection tests, risky-change warnings. Langfuse skipped (disk); built-in tracing instead |
-| 9 | Deploy + portfolio polish | 🟡 Seed | CI workflow on origin; deploy + demo README pending |
+| 9 | Deploy + portfolio polish | 🟡 Ready to deploy | Read-only showcase mode, showcase data export/import, Render/Vercel/Neon configs + [DEPLOY.md](DEPLOY.md) (rehearsed locally), product README with screenshots/GIF, CI green. Waiting on accounts |
 
 ## Backend detail (Phase 1)
 - API: `GET /health`; `/api/v1/auth/{register,login,me}`; `/api/v1/projects` CRUD; `/api/v1/audit/me`.

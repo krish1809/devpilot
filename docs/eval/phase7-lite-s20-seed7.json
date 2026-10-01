@@ -1,0 +1,152 @@
+{
+  "name": "lite-s20-seed7",
+  "dataset": "SWE-bench/SWE-bench_Lite",
+  "model": "openai/gpt-oss-120b",
+  "settings": {
+    "n": 20,
+    "seed": 7,
+    "rag_max_files": 4000,
+    "rag_max_chunks": 12000,
+    "embedding_model": "BAAI/bge-small-en-v1.5",
+    "agent_issue_chars": 4000,
+    "rag_context_chars": 5000,
+    "agent_max_attempts": 3,
+    "agent_excerpt_chars": 5000,
+    "rag_candidate_files": 8,
+    "agent_whole_file_chars": 6000,
+    "agent_run_timeout_seconds": 1800
+  },
+  "instances": [
+    "django__django-11620",
+    "django__django-11848",
+    "django__django-12113",
+    "django__django-12453",
+    "django__django-12497",
+    "django__django-12915",
+    "django__django-13028",
+    "django__django-13158",
+    "django__django-14672",
+    "django__django-16379",
+    "matplotlib__matplotlib-23299",
+    "pylint-dev__pylint-7228",
+    "scikit-learn__scikit-learn-11040",
+    "scikit-learn__scikit-learn-15535",
+    "sphinx-doc__sphinx-8282",
+    "sphinx-doc__sphinx-8801",
+    "sympy__sympy-16988",
+    "sympy__sympy-19487",
+    "sympy__sympy-21055",
+    "sympy__sympy-24213"
+  ],
+  "summary": [
+    {
+      "config": "rag",
+      "generated": 1,
+      "scored": 1,
+      "resolved": 0,
+      "resolve_rate": 0.0,
+      "ci95": [
+        0.0,
+        0.7934567085261071
+      ],
+      "infra_failures": [],
+      "with_patch": 1,
+      "localized": 0,
+      "avg_tokens": 5482.0,
+      "avg_llm_calls": 2.0,
+      "avg_seconds": 6.5
+    },
+    {
+      "config": "oracle-file",
+      "generated": 1,
+      "scored": 1,
+      "resolved": 0,
+      "resolve_rate": 0.0,
+      "ci95": [
+        0.0,
+        0.7934567085261071
+      ],
+      "infra_failures": [],
+      "with_patch": 1,
+      "localized": 1,
+      "avg_tokens": 4656.0,
+      "avg_llm_calls": 2.0,
+      "avg_seconds": 5.6
+    },
+    {
+      "config": "oracle-file+rag",
+      "generated": 0,
+      "scored": 0,
+      "resolved": 0,
+      "resolve_rate": null,
+      "ci95": null,
+      "infra_failures": [],
+      "with_patch": 0,
+      "localized": 0,
+      "avg_tokens": 0.0,
+      "avg_llm_calls": 0.0,
+      "avg_seconds": 0.0
+    },
+    {
+      "config": "gold",
+      "generated": 1,
+      "scored": 1,
+      "resolved": 1,
+      "resolve_rate": 1.0,
+      "ci95": [
+        0.20654329147389294,
+        1.0
+      ],
+      "infra_failures": [],
+      "with_patch": 1,
+      "localized": 1,
+      "avg_tokens": 0.0,
+      "avg_llm_calls": 0.0,
+      "avg_seconds": 0.0
+    }
+  ],
+  "results": [
+    {
+      "instance_id": "django__django-11620",
+      "config": "gold",
+      "status": "reference",
+      "target_path": "django/views/debug.py",
+      "gold_path": "django/views/debug.py",
+      "localized": true,
+      "resolved": true,
+      "llm_calls": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "seconds": 0.0,
+      "error": null
+    },
+    {
+      "instance_id": "django__django-11620",
+      "config": "oracle-file",
+      "status": "validated",
+      "target_path": "django/views/debug.py",
+      "gold_path": "django/views/debug.py",
+      "localized": true,
+      "resolved": false,
+      "llm_calls": 2,
+      "prompt_tokens": 3196,
+      "completion_tokens": 1460,
+      "seconds": 5.6,
+      "error": null
+    },
+    {
+      "instance_id": "django__django-11620",
+      "config": "rag",
+      "status": "validated",
+      "target_path": "django/urls/resolvers.py",
+      "gold_path": "django/views/debug.py",
+      "localized": false,
+      "resolved": false,
+      "llm_calls": 2,
+      "prompt_tokens": 3874,
+      "completion_tokens": 1608,
+      "seconds": 6.5,
+      "error": null
+    }
+  ]
+}

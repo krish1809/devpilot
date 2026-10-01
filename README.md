@@ -1,203 +1,164 @@
-# DevPilot — AI Software Engineering Platform
+# DevPilot
+
+**An AI software engineer that turns GitHub issues into tested pull requests — and never ships
+without a human's approval.**
 
 [![CI](https://github.com/krish1809/devpilot/actions/workflows/ci.yml/badge.svg)](https://github.com/krish1809/devpilot/actions/workflows/ci.yml)
 
-**Status:** Phases 1–3 done — backend foundation, the agent **walking skeleton** (failing test → fix → real PR), and a Next.js UI to drive it (create task → Run → review diff → Approve→PR). Next: Phase 4 (GitHub integration). See [docs/PLAN.md](docs/PLAN.md).
-**Repository:** https://github.com/krish1809/devpilot
+Point DevPilot at an issue. It indexes the repository, finds the file that's actually broken,
+plans a fix, edits the code, runs the project's tests in a locked-down Docker sandbox, and shows
+you the diff, the plan and a full trace. Only when you click **Approve** does it push a branch and
+open the pull request.
 
-DevPilot is an AI agent that takes a real GitHub issue, inspects a repository, plans a fix, writes a patch, runs the repo's tests in an isolated Docker sandbox, shows you the diff, and—only after explicit human approval—opens a pull request. It is scoped as a portfolio project (see [docs/PLAN.md](docs/PLAN.md) for the roadmap and what is intentionally out of scope).
+<p align="center">
+  <img src="docs/images/demo.gif" alt="DevPilot showcase: a run's plan, diff, retrieved context, trace and pull request" width="860">
+</p>
 
-The workflow below is the target design. Currently implemented: a FastAPI/PostgreSQL backend with a Project CRUD API and basic JWT auth, and a Next.js frontend for those. The agent, sandbox, GitHub integration, RAG, evaluation, and deployment are not built yet.
+<table>
+  <tr>
+    <td width="50%"><a href="docs/images/run-detail.png"><img src="docs/images/run-detail.png" alt="A run: plan, timeline, diff, retrieved context, LLM and MCP trace, PR link"></a></td>
+    <td width="50%"><a href="docs/images/benchmarks.png"><img src="docs/images/benchmarks.png" alt="SWE-bench Lite results per configuration and per instance"></a></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>One run, end to end: plan · timeline · diff · retrieved context · trace · PR</sub></td>
+    <td align="center"><sub>SWE-bench Lite results, scored by the official harness</sub></td>
+  </tr>
+</table>
 
-## Product goals
-- Demonstrate real software engineering: backend, data, AI agents, security, testing, DevOps, and observability.
-- Build incrementally as a maintainable modular monolith before considering separate services.
-- Keep LLM providers replaceable.
-- Make agent plans, tool calls, validation, approvals, and outcomes inspectable.
-- Keep humans in control of consequential repository actions.
+**Example:** [issue #4](https://github.com/krish1809/devpilot-demo/issues/4) only said *"the
+weather report shows the wrong Celsius temperature"*. DevPilot retrieved the related code, traced
+the bug past `weather.py` (the file the issue talks about) to the conversion helper in `units.py`,
+fixed `5 / 8` → `5 / 9`, passed the tests in the sandbox in ~18 s using ~2.3k tokens, and — after
+approval — opened [PR #5](https://github.com/krish1809/devpilot-demo/pull/5).
 
-## Intended workflow
-1. Create a DevPilot project.
-2. Connect an authorized GitHub repository.
-3. Submit a task or select an issue.
-4. Inspect repository context at a known commit.
-5. Generate a structured plan and review it.
-6. Implement a patch in an isolated workspace.
-7. Run tests, lint, type checks, and configured security checks.
-8. Review the diff and results.
-9. Obtain explicit human approval.
-10. Create a branch and pull request.
-11. Preserve a traceable run history and audit trail.
+## Highlights
+
+- **A durable agent, not a single prompt.** A [LangGraph](https://www.langchain.com/langgraph)
+  state graph — retrieve → plan → code → test (bounded repair loop) → review → human approval →
+  publish — checkpointed to Postgres after every step. Runs execute in the background, can be
+  cancelled, resumed after a crash, and wait indefinitely for a decision (the paused graph
+  survives a server restart). Every run is capped on attempts, LLM calls, tokens and time.
+- **Untrusted code stays in a box.** Repository tests run only in a disposable Docker container:
+  no network, CPU/memory/PID limits, non-root, hard timeout. Nothing from the repo runs on the host.
+- **Human-in-the-loop, enforced.** An approval is bound to the SHA-256 of the exact diff and the
+  base commit you reviewed; if anything changed, publishing refuses. Patches that newly add
+  environment access, process execution or network calls are flagged before you approve.
+- **Repository RAG.** Code is chunked (Python by top-level definitions), embedded locally
+  (`bge-small`, no API key) into **pgvector**, and searched with a hybrid of vector similarity and
+  Postgres full-text search (reciprocal-rank fusion, traceback boosting). Large repos are embedded
+  lazily at query time. The planner uses it to *localize* the file when the issue doesn't say.
+- **Its own MCP server.** The agent's sandbox runs go through `devpilot-tools`, a
+  [Model Context Protocol](https://modelcontextprotocol.io) server bound per process to one run and
+  a permission policy: `run_tests` only runs the task's configured command, file reads are confined
+  and refuse secrets, and every call — allowed or denied — lands in an audit log.
+- **Prompt-injection aware.** Issue text, files and tool output are treated as hostile: wrapped in
+  untrusted-data tags, secrets never enter prompts, the agent can't be steered into `.env` or CI
+  files. A test suite runs the agent against a deliberately malicious repository.
+- **Evaluated, honestly.** A harness runs DevPilot on **SWE-bench Lite** and scores every patch with
+  the **official SWE-bench harness**, comparing configurations (see below).
+- **Inspectable.** Per-run timeline, plan, retrieved context, LLM-call trace (tokens, latency),
+  MCP tool-call audit, and graph checkpoints — all in the UI.
+
+## Results
+
+**Retrieval matters for root-cause fixes** ([report](docs/eval/phase6-rag.md)). On 5 multi-file
+repos where the issue never names the buggy file, both configurations made the tests pass, but
+only retrieval fixed the *actual* bug every time:
+
+| Config | Tests pass | Fixed the buggy file (not a workaround) | Avg tokens |
+|---|---|---|---|
+| No retrieval (file list only) | 5/5 | 2/5 | 2,483 |
+| Hybrid RAG | 5/5 | **5/5** | 1,990 |
+
+**SWE-bench Lite** ([method](docs/eval/README.md)) — a seeded random sample of 20 real issues
+from Django, SymPy, scikit-learn, Sphinx, Matplotlib and Pylint, run with a free-tier open-weight
+model (`gpt-oss-120b` on Groq, 200k tokens/day) and scored by the official harness. The full run
+is in progress (it's paced by the daily token quota); reports:
+[current run](docs/eval/phase7-lite-s20-seed7.md) ·
+[earlier agent version, 6 instances](docs/eval/phase7-lite-s20-seed7-v1-nogate.md).
+Read it as a capability demonstration with wide confidence intervals, not a leaderboard claim.
+
+What evaluation already changed in the agent: SEARCH/REPLACE editing with excerpts for large files
+(whole-file rewrites don't fit real repositories), lazy embedding (CPU embedding of a 12k-chunk repo
+would take ~15 min), and a syntax gate after early patches failed on an `IndentationError` before a
+single test ran.
 
 ## Architecture
 
-```text
-Next.js UI ──HTTPS/SSE──> FastAPI API
-                              ├── PostgreSQL (+ pgvector later)
-                              ├── Redis / workers (later)
-                              └── LangGraph agent runtime (later)
-                                      ├── planner / repo analyst
-                                      ├── coder / tester / reviewer
-                                      └── permissioned tools / MCP
-                                               └── isolated Docker sandbox
-                                                        └── human approval
-                                                             └── GitHub PR
+```mermaid
+flowchart LR
+  UI["Next.js UI<br/>tasks · runs · approve · benchmarks"] -->|REST, polling| API["FastAPI"]
+  API --> PG[("PostgreSQL + pgvector<br/>tasks · runs · events · traces<br/>LangGraph checkpoints · RAG index")]
+  API -->|background run| G["LangGraph agent"]
+  G -->|plan / code| LLM["LLM provider<br/>(Groq, configurable)"]
+  G -->|hybrid search| PG
+  G -->|MCP over stdio| MCP["devpilot-tools<br/>MCP server"]
+  MCP -->|audited| PG
+  MCP --> SB["Docker sandbox<br/>no network · limits · non-root"]
+  G -->|after approval| GH["GitHub<br/>branch + PR"]
 ```
 
-The early implementation can run in one API process. Introduce workers and additional infrastructure only when justified.
+```mermaid
+flowchart LR
+  P[prepare<br/>clone at pinned SHA<br/>baseline test] --> R[retrieve] --> PL[plan<br/>+ localize] --> C[code] --> T[test]
+  C -->|edit rejected| C
+  T -->|fails, attempts left| C
+  T -->|out of attempts| F[fail]
+  T -->|passes| RV[review<br/>guards + risk warnings]
+  RV -->|refused| X[review_failed]
+  RV --> H{{human approval<br/>graph paused}}
+  H -->|approve| PUB[publish PR]
+  H -->|reject| REJ[rejected]
+```
 
-## Planned stack
+## Tech stack
 
 | Area | Technology |
 |---|---|
-| Frontend | Next.js, React, TypeScript |
-| UI | Tailwind CSS, shadcn/ui |
-| API | Python, FastAPI, Pydantic |
-| ORM/migrations | SQLAlchemy 2.x, Alembic |
-| Database | PostgreSQL; pgvector later |
-| Cache/queue | Redis later |
-| Agent orchestration | LangGraph |
-| Tool interoperability | MCP plus internal adapters |
-| Execution | Docker sandbox, hardened before untrusted code |
-| Tests/quality | pytest, HTTPX, Ruff |
-| CI/CD | GitHub Actions |
-| Observability | OpenTelemetry, Prometheus, Grafana |
-| Deployment | Container-based cloud deployment |
-| IaC | Terraform/Kubernetes optional later |
+| Backend | Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2, Alembic |
+| Agent | LangGraph (+ Postgres checkpointer), provider-neutral LLM client |
+| Retrieval | pgvector, Postgres full-text search, fastembed (`BAAI/bge-small-en-v1.5`, ONNX) |
+| Tools | MCP Python SDK 2.x (stdio), Docker sandbox, git, GitHub REST |
+| Frontend | Next.js 14, TypeScript, Tailwind |
+| Quality | pytest (≈200 tests incl. a real Postgres/pgvector test DB), Vitest + Testing Library, Ruff, ESLint, GitHub Actions |
+| Evaluation | SWE-bench Lite + the official `swebench` harness |
 
-LLM access must use a provider abstraction. Provider and model are configuration, not hard-coded business logic. Local Ollama and hosted providers can be supported as appropriate. API credentials are separate from a ChatGPT subscription; keep keys in environment variables or a secret manager, never in Git.
+## Run it locally
 
-## Repository layout
-
-```text
-devpilot/
-├── apps/
-│   └── api/
-│       ├── app/
-│       │   ├── api/          # HTTP routers + dependencies (deps.py)
-│       │   ├── core/         # settings/security
-│       │   ├── db/           # SQLAlchemy base/session
-│       │   ├── models/       # ORM models
-│       │   ├── schemas/      # Pydantic models
-│       │   ├── services/     # use-case logic
-│       │   └── main.py
-│       ├── alembic/          # migrations
-│       ├── tests/            # pytest suite (dedicated test DB)
-│       ├── Dockerfile
-│       └── pyproject.toml
-├── docs/
-├── Makefile
-├── .env.example
-├── .gitignore
-├── docker-compose.yml
-└── README.md
-```
-Future directories (`apps/web`, `infra/`, `.github/workflows/`, `agents/`, `integrations/`) are added when implementing them.
-
-## Quick start (Docker, full stack)
-
-Requirements: Docker Engine/Compose.
+Requirements: Docker, Python 3.11+, Node 20+, Git, a [Groq](https://console.groq.com) API key
+(free) and, for opening PRs, a GitHub token or the authenticated `gh` CLI.
 
 ```bash
-docker compose up -d --build   # or: make docker-up
-```
-
-This starts PostgreSQL, runs Alembic migrations (`migrate` service), then starts the API.
-
-- Health: http://localhost:8000/health
-- Swagger: http://localhost:8000/docs
-
-Stop with `docker compose down` (or `make docker-down`).
-
-> Note: building the API image pulls `python:3.12-slim`, so registry access is required on first build.
-
-## Local backend setup (venv)
-
-Requirements: Python 3.11+, Docker Engine/Compose, Git.
-
-From repository root:
-
-```bash
-cd apps/api
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
+docker compose up -d postgres                 # Postgres 17 + pgvector
+cd apps/api && python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
-```
-
-Copy root `.env.example` to `.env` and adjust local values if needed. Keep `.env` ignored by Git.
-
-Start PostgreSQL from repository root:
-
-```bash
-docker compose up -d postgres
-docker compose ps
-```
-
-Apply migrations and run the API from `apps/api`:
-
-```bash
-source .venv/bin/activate
+cp ../../.env.example .env                    # set GROQ_API_KEY (and GITHUB_TOKEN if no gh CLI)
 alembic upgrade head
-uvicorn app.main:app --reload
+docker pull python:3.11-slim                  # the sandbox image
+uvicorn app.main:app --reload                 # http://localhost:8000/docs
+
+cd ../web && npm install && npm run dev       # http://localhost:3000
 ```
 
-- Health: http://localhost:8000/health
-- Swagger: http://localhost:8000/docs
+Sign up, open **Tasks**, import a GitHub issue (or point at any git URL), press **Run agent**,
+review, approve. Checks: `make check` (backend) · `npm run lint && npm test && npm run build` (web).
 
-Checks from `apps/api`:
+Public deployment is a read-only showcase (`DEMO_MODE=true`) — see [docs/DEPLOY.md](docs/DEPLOY.md).
 
-```bash
-pytest -v
-ruff check .
-ruff format --check .
-```
+## Limitations (honest)
 
-Tests use a dedicated test database (`devpilot_test` by default, or `TEST_DATABASE_URL`). The suite creates and drops that database itself; destructive setup never runs against the development or production database.
-
-## Frontend (apps/web)
-
-Next.js 14 (App Router) + TypeScript + Tailwind. Auth (register/login) and full
-project CRUD against the API. See [apps/web/README.md](apps/web/README.md).
-
-```bash
-cd apps/web
-cp .env.local.example .env.local   # set NEXT_PUBLIC_API_URL (default http://localhost:8000)
-npm install
-npm run dev                        # http://localhost:3000
-```
-
-Verified with `npm run build` and `npm run test` (Vitest).
-
-## Current API
-
-Base prefix: `/api/v1`
-
-| Method | Path | Purpose |
-|---|---|---|
-| GET | `/health` | Basic liveness response |
-| POST | `/projects` | Create project |
-| GET | `/projects` | List projects |
-| GET | `/projects/{project_id}` | Retrieve project |
-| PATCH | `/projects/{project_id}` | Partially update project |
-| DELETE | `/projects/{project_id}` | Delete project |
-
-`name` is required, non-empty, and at most 100 characters. All project endpoints require a bearer token (`/api/v1/auth/register` + `/login`) and are scoped to the owner; another user's project returns 404. Register/login are rate-limited, and security-relevant actions are recorded to an audit log (`/api/v1/audit/me`). See [docs/API.md](docs/API.md) for the full contract.
-
-## Development workflow
-1. Inspect repository and Git status before editing.
-2. Work on one small, coherent feature.
-3. Follow `docs/AGENT_CONTEXT.md` and `docs/ARCHITECTURE.md`.
-4. Add/update tests and docs.
-5. Run relevant tests and lint/format checks; report actual results.
-6. Review the diff for secrets and unrelated changes.
-7. Commit meaningful, verified work. Do not create empty commits.
+- **Single-file fixes.** The agent edits exactly one file per run (every SWE-bench Lite reference
+  patch does too); multi-file changes are out of scope.
+- **Free-tier model.** Patch quality is bounded by `gpt-oss-120b` on Groq's free tier and its
+  200k tokens/day; stronger models would score higher. The provider is configuration.
+- **Runs live in the API process** (background threads) and progress is polled — no separate
+  worker or streaming yet.
+- **The hosted site is a showcase.** Running the agent needs Docker and an LLM key, so it runs
+  locally; the public site shows recorded runs.
+- Deliberately out of scope for a portfolio project: multi-tenancy, billing, Kubernetes, a GitHub
+  App ([docs/PLAN.md](docs/PLAN.md)).
 
 ## Documentation
-- [Build plan & roadmap (source of truth)](docs/PLAN.md)
-- [Agent entrypoint](CLAUDE.md) · [Rules & guardrails](rules.md)
-- [Architecture](architecture.md) · [deep architecture](docs/ARCHITECTURE.md)
-- [Progress report](docs/PROGRESS.md)
-- [API contract](docs/API.md)
-- [Security design](docs/SECURITY.md)
-- [Product requirements](PRD.md) · [Design system](design.md)
+
+[Plan & phases](docs/PLAN.md) · [Progress](docs/PROGRESS.md) · [API](docs/API.md) ·
+[Security](docs/SECURITY.md) · [Evaluation](docs/eval/README.md) · [Deploy](docs/DEPLOY.md)

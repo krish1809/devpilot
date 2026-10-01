@@ -1,0 +1,23 @@
+# Render blueprint for the DevPilot API as a public, read-only showcase.
+# Render dashboard → New → Blueprint → pick this repo. See docs/DEPLOY.md.
+services:
+  - type: web
+    name: devpilot-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: ./apps/api
+    healthCheckPath: /health
+    envVars:
+      - key: DEMO_MODE          # read-only showcase: no agent runs, no GitHub calls
+        value: "true"
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: SECRET_KEY         # signs session tokens; generated once by Render
+        generateValue: true
+      - key: DATABASE_URL       # Neon connection string (paste in the dashboard)
+        sync: false
+      - key: CORS_ORIGINS       # your Vercel URL, e.g. https://devpilot.vercel.app
+        sync: false
