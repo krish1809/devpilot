@@ -3,8 +3,9 @@
 Security posture (see docs/SECURITY.md): network disabled by default, CPU/
 memory/PID limits, a hard timeout, bounded captured output, and `--rm` so the
 container is always removed. It runs as the host's (non-root) user so anything
-it writes into the mounted checkout stays removable, with bytecode writes off. The host Docker socket is never mounted and no host
-credentials are passed in. This never executes repository code on the API host.
+it writes into the mounted checkout stays removable, with bytecode writes off.
+The host Docker socket is never mounted and no host credentials are passed in.
+This never executes repository code on the API host.
 """
 
 from __future__ import annotations
