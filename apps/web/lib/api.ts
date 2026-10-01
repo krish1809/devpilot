@@ -1,11 +1,15 @@
 import type {
   AgentRun,
   AuditLog,
+  GitHubIssue,
+  GitHubRepo,
+  GitHubTree,
   Project,
   ProjectCreateInput,
   ProjectUpdateInput,
   Task,
   TaskCreateInput,
+  TaskFromIssueInput,
   Token,
   User,
 } from "./types";
@@ -146,9 +150,30 @@ export const api = {
 
   getRun: (id: number) => request<AgentRun>(`/api/v1/runs/${id}`),
 
-  approveRun: (id: number, decision: "approved" | "rejected", baseBranch = "main") =>
+  // The PR targets the task's base branch unless one is given here.
+  approveRun: (id: number, decision: "approved" | "rejected", baseBranch?: string) =>
     request<AgentRun>(`/api/v1/runs/${id}/approve`, {
       method: "POST",
-      body: { decision, base_branch: baseBranch },
+      body: baseBranch ? { decision, base_branch: baseBranch } : { decision },
     }),
+
+  // --- GitHub ---
+  listRepos: () => request<GitHubRepo[]>("/api/v1/github/repos"),
+
+  listIssues: (fullName: string) =>
+    request<GitHubIssue[]>(`/api/v1/github/repos/${repoPath(fullName)}/issues`),
+
+  getTree: (fullName: string, ref?: string) =>
+    request<GitHubTree>(
+      `/api/v1/github/repos/${repoPath(fullName)}/tree` +
+        (ref ? `?ref=${encodeURIComponent(ref)}` : ""),
+    ),
+
+  createTaskFromIssue: (input: TaskFromIssueInput) =>
+    request<Task>("/api/v1/tasks/from-issue", { method: "POST", body: input }),
 };
+
+/** "owner/name" -> "owner/name" with each segment URL-encoded. */
+export function repoPath(fullName: string): string {
+  return fullName.split("/").map(encodeURIComponent).join("/");
+}

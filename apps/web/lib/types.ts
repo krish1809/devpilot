@@ -45,6 +45,11 @@ export interface Task {
   owner_id: number;
   repo_url: string;
   base_commit: string | null;
+  base_branch: string | null;
+  repo_full_name: string | null;
+  issue_number: number | null;
+  issue_title: string | null;
+  issue_url: string | null;
   test_command: string;
   target_path: string;
   description: string | null;
@@ -54,6 +59,7 @@ export interface Task {
 export interface TaskCreateInput {
   repo_url: string;
   base_commit?: string | null;
+  base_branch?: string | null;
   test_command: string;
   target_path: string;
   description?: string | null;
@@ -90,6 +96,7 @@ export interface AgentRun {
   task_id: number;
   status: RunStatus;
   model: string;
+  base_commit: string | null;
   diff: string | null;
   test_passed: boolean | null;
   sandbox_output: string | null;
@@ -98,4 +105,39 @@ export interface AgentRun {
   updated_at: string;
   events: RunEvent[];
   pull_request: PullRequest | null;
+}
+
+// --- GitHub (Phase 4) ---
+export interface GitHubRepo {
+  full_name: string;
+  private: boolean;
+  default_branch: string;
+  description: string | null;
+  html_url: string;
+  open_issues_count: number;
+  can_push: boolean;
+}
+
+export interface GitHubIssue {
+  number: number;
+  title: string;
+  state: string;
+  html_url: string;
+  labels: string[];
+  created_at: string;
+}
+
+export interface GitHubTree {
+  repo_full_name: string;
+  ref: string;
+  commit_sha: string;
+  files: string[];
+}
+
+export interface TaskFromIssueInput {
+  repo_full_name: string;
+  issue_number: number;
+  base_branch?: string | null;
+  test_command: string;
+  target_path: string;
 }

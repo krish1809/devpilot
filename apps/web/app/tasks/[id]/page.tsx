@@ -104,7 +104,19 @@ export default function TaskDetailPage() {
         <>
           <Card>
             <CardHeader>
-              <CardTitle className="break-all text-lg">{task.repo_url}</CardTitle>
+              <CardTitle className="break-all text-lg">
+                {task.repo_full_name ?? task.repo_url}
+              </CardTitle>
+              {task.issue_number && (
+                <a
+                  href={task.issue_url ?? "#"}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                >
+                  #{task.issue_number} {task.issue_title} <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
               <p>
@@ -116,10 +128,14 @@ export default function TaskDetailPage() {
                 <span className="font-mono">{task.test_command}</span>
               </p>
               <p>
-                <span className="text-muted-foreground">Base commit:</span>{" "}
-                <span className="font-mono">{task.base_commit || "HEAD"}</span>
+                <span className="text-muted-foreground">Base:</span>{" "}
+                <span className="font-mono">
+                  {task.base_branch ?? "default branch"} @ {task.base_commit?.slice(0, 12) || "HEAD"}
+                </span>
               </p>
-              {task.description && <p className="text-muted-foreground">{task.description}</p>}
+              {task.description && (
+                <p className="whitespace-pre-wrap text-muted-foreground">{task.description}</p>
+              )}
               <div className="pt-2">
                 <Button onClick={handleRun} disabled={running}>
                   {running ? <Spinner /> : <Play className="h-4 w-4" />}
@@ -163,6 +179,11 @@ function RunView({
       <CardContent className="space-y-4">
         <p className="text-xs text-muted-foreground">
           model <span className="font-mono">{run.model}</span> ·{" "}
+          {run.base_commit && (
+            <>
+              commit <span className="font-mono">{run.base_commit.slice(0, 7)}</span> ·{" "}
+            </>
+          )}
           test {run.test_passed === null ? "—" : run.test_passed ? "passed ✓" : "failed ✗"} ·{" "}
           {formatDate(run.updated_at)}
         </p>

@@ -34,6 +34,8 @@ class AgentRun(Base):
 
     status: Mapped[str] = mapped_column(String(32), nullable=False, default=RunStatus.RUNNING)
     model: Mapped[str] = mapped_column(String(100), nullable=False)
+    # The exact commit SHA the run was executed against.
+    base_commit: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     diff: Mapped[str | None] = mapped_column(Text, nullable=True)
     test_passed: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
@@ -75,6 +77,9 @@ class Approval(Base):
         ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=False, index=True
     )
     decision: Mapped[str] = mapped_column(String(16), nullable=False)  # approved | rejected
+    # What was approved: the diff's SHA-256 and the commit it applies to.
+    diff_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    base_commit: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

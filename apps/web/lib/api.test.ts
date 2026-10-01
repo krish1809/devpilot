@@ -49,3 +49,26 @@ describe("api client", () => {
     expect(err.status).toBe(0);
   });
 });
+
+describe("github + approval client", () => {
+  it("encodes repo path segments", async () => {
+    const { repoPath } = await import("./api");
+    expect(repoPath("octo/my repo")).toBe("octo/my%20repo");
+  });
+
+  it("calls the issues endpoint for a repo", async () => {
+    const fetchMock = mockFetch(200, []);
+    globalThis.fetch = fetchMock;
+    await api.listIssues("octo/demo");
+    const calls = fetchMock.mock.calls as unknown as [string, RequestInit][];
+    expect(calls[0][0]).toMatch(/\/api\/v1\/github\/repos\/octo\/demo\/issues$/);
+  });
+
+  it("omits base_branch on approve so the task's branch is used", async () => {
+    const fetchMock = mockFetch(200, {});
+    globalThis.fetch = fetchMock;
+    await api.approveRun(1, "approved");
+    const init = (fetchMock.mock.calls as unknown as [string, RequestInit][])[0][1];
+    expect(JSON.parse(init.body as string)).toEqual({ decision: "approved" });
+  });
+});

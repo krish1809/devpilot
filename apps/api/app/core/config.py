@@ -42,6 +42,11 @@ class Settings(BaseSettings):
     hf_api_key: str = ""
     ollama_base_url: str = "http://localhost:11434"
 
+    # GitHub. A fine-grained PAT, server-side only. If empty, falls back to the
+    # host's authenticated `gh` CLI token.
+    github_token: str = ""
+    github_timeout_seconds: int = 20
+
     # Sandbox for running untrusted repository code.
     sandbox_image: str = "python:3.11-slim"
     sandbox_timeout_seconds: int = 120

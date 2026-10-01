@@ -10,6 +10,7 @@ from app.schemas.agent import (
     TaskResponse,
 )
 from app.services import agent as agent_service
+from app.services import audit
 
 router = APIRouter(tags=["agent"])
 
@@ -77,4 +78,10 @@ def approve_run(
         run = agent_service.approve_run(db, run, data.decision, base_branch=data.base_branch)
     except agent_service.ApprovalError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    audit.record_event(
+        db,
+        audit.RUN_APPROVED if data.decision == "approved" else audit.RUN_REJECTED,
+        user_id=current_user.id,
+        detail=f"run {run.id} -> {run.status}",
+    )
     return _run_response(db, run)

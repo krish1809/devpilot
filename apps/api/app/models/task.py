@@ -1,13 +1,14 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
 
 
 class Task(Base):
-    """A unit of work for the agent: fix a failing test in a repo at a commit."""
+    """A unit of work for the agent: fix a failing test (optionally a GitHub issue)
+    in a repo at a commit."""
 
     __tablename__ = "tasks"
 
@@ -21,6 +22,14 @@ class Task(Base):
 
     repo_url: Mapped[str] = mapped_column(String(500), nullable=False)
     base_commit: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+    # GitHub binding (Phase 4). Set when the task targets a github.com repo:
+    # the run is bound to (repo, base branch, base commit SHA).
+    repo_full_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    base_branch: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    issue_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    issue_title: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    issue_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     # The command that runs the failing test inside the sandbox.
     test_command: Mapped[str] = mapped_column(String(500), nullable=False)

@@ -1,11 +1,11 @@
 # DevPilot — Working Memory
 
-**Last updated:** 2026-09-30
+**Last updated:** 2026-10-01
 **Roadmap authority:** [docs/PLAN.md](docs/PLAN.md) (9 phases). Ignore old phase numbers.
 
-**Current position:** Phases 1 ✅, 2 ✅ (walking skeleton, real PR), 3 ✅ (frontend:
-auth + projects + agent UI). **Next: Phase 4 — real GitHub integration** (list repos,
-import issues, target arbitrary repos). SSE live run-streaming deferred from Phase 3.
+**Current position:** Phases 1 ✅, 2 ✅ (walking skeleton, real PR), 3 ✅ (frontend),
+4 ✅ (real GitHub integration — code + tests; live issue→PR demo pending).
+**Next: Phase 5 — LangGraph agent.** SSE live run-streaming still deferred.
 
 > Update this at the end of every session. Fuller tracking: [docs/PROGRESS.md](docs/PROGRESS.md).
 
@@ -15,7 +15,7 @@ import issues, target arbitrary repos). SSE live run-streaming deferred from Pha
 - FastAPI + PostgreSQL + Alembic; Project CRUD (`apps/api/app/...`), `/health`
 - Dedicated `devpilot_test` DB, pytest fixtures, **44 tests passing**; Ruff lint + format clean
 - Docker Compose (Postgres + `migrate` + `api`), Dockerfile, Makefile
-- Migrations at head `c1a2b3d4e5f6`; chain verified drift-free on a fresh DB
+- Migrations chain verified drift-free on a fresh DB (current head: `deb3d64694ad`, Phase 4)
 - CORS middleware (so the web app can call the API)
 
 ## ✅ Phase 3 — Frontend + light auth (done)
@@ -24,8 +24,17 @@ import issues, target arbitrary repos). SSE live run-streaming deferred from Pha
 - **Agent UI:** `/tasks` (list + create) and `/tasks/[id]` — Run the agent, see status badge + event timeline + proposed diff + sandbox result, and Approve→PR / Reject. Nav has Tasks/Projects; post-login → `/tasks`.
 - Deferred: SSE live run streaming (runs are synchronous); per-task run history list.
 
+## ✅ Phase 4 — Real GitHub integration (done in code)
+- `app/integrations/github_api.py` (REST via httpx; token = `GITHUB_TOKEN` or fallback `gh auth token`; git gets it via `GIT_CONFIG_*` env, never URL/args).
+- `app/services/github.py`, `app/api/github.py`: `GET /github/repos`, `/github/repos/{o}/{n}/issues`, `/tree?ref=`; `POST /tasks/from-issue` (pins base branch → SHA, verifies target file at SHA, rejects closed issues/PRs).
+- PRs now via REST (`github_pr.py`), against the task's base branch, body `Fixes #N`. Approval stores `diff_sha256` + `base_commit`; runs store `base_commit`. Migration `deb3d64694ad` (head).
+- Hardening: safe `target_path` (no `..`/abs/.git, symlink-escape check at write), safe branch names, `git clone --`, issue text given to LLM as delimited untrusted context. Audit: `task.imported_from_issue`, `run.approved/rejected`.
+- UI: `components/ImportFromIssue.tsx` on `/tasks`; manual form behind a `<details>`.
+- Verified: 91 backend tests, ruff clean; web lint + tsc + 7 Vitest + build green; live read-only calls against GitHub OK (38 repos, tree@SHA, 404 mapping, PR-not-issue refusal).
+- Pending: live demo — `devpilot-demo` main is already fixed (PR #1 merged) and has no open issues; plant a new bug + issue to demo.
+
 ## 🟡 Phase 9 — Deploy + polish (seed only)
-- GitHub Actions CI (`.github/workflows/ci.yml`) — backend ruff+migrations+pytest and frontend lint+vitest+build. **Commit `2d14c97` is local/unpushed** (token lacks `workflow` scope). Deploy (Vercel/Render/Neon) + demo README not done.
+- GitHub Actions CI (`.github/workflows/ci.yml`) — backend ruff+migrations+pytest and frontend lint+vitest+build. CI workflow (`2d14c97`) is on origin. Deploy (Vercel/Render/Neon) + demo README not done.
 
 ## Built beyond the plan's minimal scope (kept, harmless)
 - Per-owner project scoping (`owner_id`), auth rate limiting, audit log (`audit_logs`, `/audit/me`). Plan keeps auth minimal and puts audit in Phase 8; these are ahead of schedule and reusable. Kept to avoid churn.
@@ -49,7 +58,7 @@ approve → open real PR.
 - **Sandbox network:** npm registry + github.com + PyPI reachable (npm install & git push work); Docker Hub + fonts.googleapis.com NOT (Docker image builds & web-font fetch fail here). Raw DB row deletes are approval-gated.
 - Do not repeat the earlier Alembic reset — verify DB state before destructive migration ops.
 - `.env` git-ignored; no real secrets committed. Set a strong `SECRET_KEY` for any real deploy.
-- GitHub push uses `credential.helper store` primed with the user's PAT (exposed in chat once — user to rotate).
+- GitHub push for PRs now uses the API's token via env (Phase 4). An older PAT was exposed in chat once and stored via `credential.helper store` — user should revoke it and clear `~/.git-credentials`.
 
 ## Verify-before-trust checklist for agents
 Before acting: read `docs/PLAN.md`, run `git status`, `alembic current`, check this file's date. If a referenced file/flag isn't present, re-inspect — docs may lag.

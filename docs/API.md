@@ -44,20 +44,35 @@ A project owned by another user returns `404` (existence is not revealed).
 
 Security-relevant actions are recorded to an append-only `audit_logs` table:
 `user.registered`, `user.login.succeeded`, `user.login.failed`, `project.created`,
-`project.deleted`. Audit rows never contain passwords, tokens, or full payloads.
+`project.deleted`, `task.imported_from_issue`, `run.approved`, `run.rejected`. Audit rows never contain passwords, tokens, or full payloads.
 
-## Agent (walking skeleton)
+## Agent
 The agent turns a failing test into a fix and, after human approval, a PR.
 All endpoints require authentication and are owner-scoped.
 
 | Method | Path | Behavior |
 |---|---|---|
-| POST | `/api/v1/tasks` | Create a task (`repo_url`, `base_commit?`, `test_command`, `target_path`, `description?`); `201` |
+| POST | `/api/v1/tasks` | Create a task manually (`repo_url`, `base_commit?`, `base_branch?`, `test_command`, `target_path`, `description?`); `201`. A `https://github.com/...` URL is bound to `repo_full_name` automatically |
+| POST | `/api/v1/tasks/from-issue` | Import an **open** GitHub issue (`repo_full_name`, `issue_number`, `base_branch?`, `target_path`, `test_command`); resolves the branch to a commit SHA and pins the task to it; verifies `target_path` exists at that SHA; `201`/`404`/`422` |
 | GET | `/api/v1/tasks` | List caller's tasks; `200` |
 | GET | `/api/v1/tasks/{id}` | Get a task; `200`/`404` |
 | POST | `/api/v1/tasks/{id}/run` | Run the agent synchronously; returns the run with `diff`, `test_passed`, `status`, and `events` |
 | GET | `/api/v1/runs/{id}` | Get a run (with events and any pull request); `200`/`404` |
-| POST | `/api/v1/runs/{id}/approve` | `{decision: "approved"\|"rejected", base_branch?}`. Approving a **validated** run opens a PR; `409` if the run is not validated |
+| POST | `/api/v1/runs/{id}/approve` | `{decision: "approved"\|"rejected", base_branch?}`. Approving a **validated** run opens a PR against the task's base branch (override with `base_branch`); `409` if the run is not validated. The approval records the diff's SHA-256 and the run's base commit |
+
+`target_path` must be a relative path inside the repo (no `..`, absolute paths, or `.git/`);
+branch names are validated so they can't be read as git options.
+
+## GitHub (Phase 4)
+Server-side token only (`GITHUB_TOKEN`, a fine-grained PAT; falls back to the host's `gh auth token`).
+The token is never returned to clients. Upstream failures map to `404` (not found / no access),
+`422` (invalid input), `503` (no token configured), or `502` (other GitHub errors).
+
+| Method | Path | Behavior |
+|---|---|---|
+| GET | `/api/v1/github/repos` | Repos the token can access (`full_name`, `default_branch`, `private`, `can_push`, …) |
+| GET | `/api/v1/github/repos/{owner}/{name}/issues?state=open` | Issues (PRs filtered out) |
+| GET | `/api/v1/github/repos/{owner}/{name}/tree?ref=` | Files at `ref` (default branch if omitted) plus the resolved `commit_sha` |
 
 Run `status` values: `running`, `validated`, `test_failed`, `error`, `approved`,
 `rejected`, `published`, `publish_failed`. Publishing is impossible without an
@@ -84,7 +99,7 @@ Response includes `id`, `owner_id`, `name`, `description`, `created_at`, and `up
 - No pagination yet.
 - Rate limiting is in-memory/per-process (fine for a single API process; a multi-replica deployment would need a shared store, which is out of scope for this portfolio project).
 - No application-wide error envelope yet (validation uses the default FastAPI/Pydantic `422` shape; not-found/auth use `{"detail": "..."}`).
-- No task, repository, or agent-run endpoints yet.
+- Agent runs are synchronous (no background worker / SSE yet).
 
 ## Evolution rules
 Keep routes versioned, use explicit schemas, validate inputs, maintain consistent errors, and test success, validation, missing-resource, and authorization paths.

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { Bot, Plus } from "lucide-react";
 
+import { ImportFromIssue } from "@/components/ImportFromIssue";
 import { ErrorAlert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -92,76 +93,84 @@ export default function TasksPage() {
           <Bot className="h-6 w-6 text-primary" /> Agent tasks
         </h1>
         <p className="text-sm text-muted-foreground">
-          Point the agent at a repo with a failing test; it proposes a fix and opens a PR after your approval.
+          Import a GitHub issue (or point at any repo with a failing test); the agent proposes a
+          fix and opens a PR after your approval.
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Plus className="h-4 w-4" /> New task
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleCreate} className="space-y-4">
-            {formError && <ErrorAlert message={formError} />}
-            <div>
-              <Label htmlFor="repo_url">Repository URL</Label>
-              <Input
-                id="repo_url"
-                value={form.repo_url}
-                onChange={(e) => set("repo_url", e.target.value)}
-                placeholder="https://github.com/you/repo.git"
-                required
-              />
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
+      <ImportFromIssue onCreated={(task) => router.push(`/tasks/${task.id}`)} />
+
+      <details className="group">
+        <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">
+          Or create a task manually (any git URL)
+        </summary>
+        <Card className="mt-3">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Plus className="h-4 w-4" /> New task
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleCreate} className="space-y-4">
+              {formError && <ErrorAlert message={formError} />}
               <div>
-                <Label htmlFor="target_path">Target file</Label>
+                <Label htmlFor="repo_url">Repository URL</Label>
                 <Input
-                  id="target_path"
-                  value={form.target_path}
-                  onChange={(e) => set("target_path", e.target.value)}
-                  placeholder="calculator.py"
+                  id="repo_url"
+                  value={form.repo_url}
+                  onChange={(e) => set("repo_url", e.target.value)}
+                  placeholder="https://github.com/you/repo.git"
+                  required
+                />
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <Label htmlFor="target_path">Target file</Label>
+                  <Input
+                    id="target_path"
+                    value={form.target_path}
+                    onChange={(e) => set("target_path", e.target.value)}
+                    placeholder="calculator.py"
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="base_commit">Base commit (optional)</Label>
+                  <Input
+                    id="base_commit"
+                    value={form.base_commit}
+                    onChange={(e) => set("base_commit", e.target.value)}
+                    placeholder="HEAD if empty"
+                  />
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="test_command">Test command</Label>
+                <Input
+                  id="test_command"
+                  value={form.test_command}
+                  onChange={(e) => set("test_command", e.target.value)}
+                  placeholder="python -m unittest test_calculator"
                   required
                 />
               </div>
               <div>
-                <Label htmlFor="base_commit">Base commit (optional)</Label>
-                <Input
-                  id="base_commit"
-                  value={form.base_commit}
-                  onChange={(e) => set("base_commit", e.target.value)}
-                  placeholder="HEAD if empty"
+                <Label htmlFor="description">Description (optional)</Label>
+                <Textarea
+                  id="description"
+                  value={form.description}
+                  onChange={(e) => set("description", e.target.value)}
+                  placeholder="What should the agent fix?"
                 />
               </div>
-            </div>
-            <div>
-              <Label htmlFor="test_command">Test command</Label>
-              <Input
-                id="test_command"
-                value={form.test_command}
-                onChange={(e) => set("test_command", e.target.value)}
-                placeholder="python -m unittest test_calculator"
-                required
-              />
-            </div>
-            <div>
-              <Label htmlFor="description">Description (optional)</Label>
-              <Textarea
-                id="description"
-                value={form.description}
-                onChange={(e) => set("description", e.target.value)}
-                placeholder="What should the agent fix?"
-              />
-            </div>
-            <Button type="submit" disabled={creating}>
-              {creating && <Spinner />}
-              Create task
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+              <Button type="submit" disabled={creating}>
+                {creating && <Spinner />}
+                Create task
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </details>
 
       <section>
         {error && <ErrorAlert message={error} className="mb-4" />}
@@ -183,7 +192,15 @@ export default function TasksPage() {
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between gap-4">
                         <div className="min-w-0">
-                          <p className="truncate font-medium">{task.repo_url}</p>
+                          <p className="truncate font-medium">
+                            {task.repo_full_name ?? task.repo_url}
+                            {task.issue_number && (
+                              <span className="text-muted-foreground">
+                                {" "}
+                                #{task.issue_number} {task.issue_title}
+                              </span>
+                            )}
+                          </p>
                           <p className="truncate font-mono text-xs text-muted-foreground">
                             {task.target_path} · {task.test_command}
                           </p>

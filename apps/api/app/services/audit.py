@@ -9,6 +9,9 @@ USER_LOGIN_SUCCEEDED = "user.login.succeeded"
 USER_LOGIN_FAILED = "user.login.failed"
 PROJECT_CREATED = "project.created"
 PROJECT_DELETED = "project.deleted"
+TASK_IMPORTED = "task.imported_from_issue"
+RUN_APPROVED = "run.approved"
+RUN_REJECTED = "run.rejected"
 
 
 def record_event(
