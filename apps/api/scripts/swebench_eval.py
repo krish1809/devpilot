@@ -67,10 +67,14 @@ def cmd_generate(args: argparse.Namespace) -> bool:
         except sb.QuotaExhausted:
             print("Stopped: LLM daily token quota reached. Re-run later to resume.")
             return False
+        except sb.LowDisk as exc:
+            print(f"Stopped generating: {exc}")
+            return False
         return True
 
 
-def cmd_score(args: argparse.Namespace) -> None:
+def cmd_score(args: argparse.Namespace) -> bool:
+    """Returns True when every generated result has been scored."""
     with SessionLocal() as db:
         run = _run(db, args.name)
         if args.with_gold:  # only for instances the agent has attempted
@@ -83,13 +87,18 @@ def cmd_score(args: argparse.Namespace) -> None:
                 )
             )
             sb.add_gold(db, run, [by_id[i] for i in run.instance_ids if i in attempted])
-        sb.score(
-            db,
-            run,
-            workdir=sb.CACHE / "harness",
-            remove_images=not args.keep_images,
-            timeout=args.timeout,
-        )
+        try:
+            sb.score(
+                db,
+                run,
+                workdir=sb.CACHE / "harness",
+                remove_images=not args.keep_images,
+                timeout=args.timeout,
+            )
+        except sb.LowDisk as exc:
+            print(f"Stopped scoring: {exc}")
+            return False
+        return True
 
 
 def cmd_report(args: argparse.Namespace) -> None:
@@ -122,17 +131,24 @@ def cmd_report(args: argparse.Namespace) -> None:
 
 
 def cmd_run_all(args: argparse.Namespace) -> None:
-    """generate → score → (sleep while the LLM quota refills) → … → report."""
+    """Loop generate → score → report until every result is generated and scored.
+
+    Sleeps between passes to wait out the LLM's daily quota or a low-disk stop;
+    each pass resumes where the previous one stopped.
+    """
     import time
 
     while True:
-        done = cmd_generate(args)
-        cmd_score(args)
+        generated = cmd_generate(args)
+        scored = cmd_score(args)
         cmd_report(args)  # refresh the (partial) report after every pass
-        if done:
+        if generated and scored:
             print("All instances generated and scored.")
             return
-        print(f"Waiting {args.sleep}s for the LLM quota window…", flush=True)
+        print(
+            f"Waiting {args.sleep}s before the next pass (LLM quota window / disk space)…",
+            flush=True,
+        )
         time.sleep(args.sleep)
 
 

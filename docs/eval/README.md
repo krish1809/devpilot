@@ -37,6 +37,7 @@ Two evaluations live here:
   running); it is kept as an ablation. `lite-s20-seed7` is the headline run with the gate.
 - **Unattended:** `run-all` loops generate → score → report, sleeping while the LLM's daily
   token quota (200k tokens/day on Groq's free tier) refills; the report is rewritten after each pass.
+  It finishes only when every result is both generated **and** scored.
 - **Uncertainty:** resolve rates are reported with a 95% Wilson interval. With n = 20 the
   interval is wide (±15–20 points); read differences between configs accordingly.
 
@@ -68,7 +69,11 @@ under **Benchmarks** (`/evals`), including every patch.
   retried as the provider asks. Expect roughly 1–2 minutes per instance per config.
 - **Embeddings on CPU** run at ~10–15 chunks/s, so repositories over 3,000 chunks are indexed
   lazily (text + full-text index up front, vectors only for keyword candidates at query time).
-- **Disk:** each instance image is ~3–4 GB unpacked; scoring removes it after use.
+- **Disk:** each instance image is ~3–4 GB unpacked; scoring removes it after use. A guard
+  (`MIN_FREE_GB_SCORE` = 6 GB, `MIN_FREE_GB_GENERATE` = 2 GB in `app/evals/swebench.py`)
+  checks the tighter of the eval cache's and Docker's filesystems before each instance and
+  stops cleanly instead of filling the disk (which would also take Postgres down); `run-all`
+  then sleeps and retries, so freeing space is enough to let it continue.
 - **Network:** some upstream test suites (e.g. `requests`) call real hosts; failures there are
   infra failures, not agent failures — the harness labels them.
 

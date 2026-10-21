@@ -19,6 +19,12 @@ PATCH = (
 )
 
 
+@pytest.fixture(autouse=True)
+def _plenty_of_disk(monkeypatch) -> None:  # noqa: ANN001
+    """Keep these tests independent of the real machine's free disk space."""
+    monkeypatch.setattr(sb, "free_disk_gb", lambda: 1000.0)
+
+
 def test_wilson_interval() -> None:
     assert sb.wilson_interval(0, 0) == (0.0, 0.0)
     lo, hi = sb.wilson_interval(5, 20)
@@ -186,3 +192,88 @@ def test_persistent_harness_errors_become_infra_failures(
     r = db_session.query(EvalResult).one()
     assert r.resolved is False and r.score_detail["infra_failure"] == "harness_error"
     assert "org_ABC123" not in r.score_detail["stderr"]
+
+
+# --------------------------------------------------------------------------- #
+# Disk guards: stop cleanly (and resume later) instead of filling the disk
+# --------------------------------------------------------------------------- #
+def test_scoring_stops_before_building_an_image_when_disk_is_low(
+    tmp_path: Path, db_session: Session, monkeypatch
+) -> None:
+    run = _queue_one(db_session, "low-score")
+    outcomes = [True]
+    _fake_harness_env(tmp_path, monkeypatch, outcomes)
+    monkeypatch.setattr(sb, "free_disk_gb", lambda: 1.8)
+
+    with pytest.raises(sb.LowDisk, match="1.8 GB free"):
+        sb.score(db_session, run, workdir=tmp_path / "w", log=lambda m: None)
+
+    assert outcomes == [True]  # the harness never ran
+    db_session.expire_all()
+    assert db_session.query(EvalResult).one().resolved is None  # still pending → resumable
+
+
+def test_results_without_a_patch_are_scored_even_when_disk_is_low(
+    db_session: Session, tmp_path: Path, monkeypatch
+) -> None:
+    run = sb.get_or_create_run(db_session, "low-nopatch", [], ["rag"], {})
+    db_session.add(EvalResult(eval_run_id=run.id, instance_id="a__a-1", repo="x/y",
+                              config="rag", status="review_failed", patch=None))  # fmt: skip
+    db_session.commit()
+    _fake_harness_env(tmp_path, monkeypatch, [])
+    monkeypatch.setattr(sb, "free_disk_gb", lambda: 0.1)
+
+    sb.score(db_session, run, workdir=tmp_path / "w", log=lambda m: None)  # no image needed
+
+    assert db_session.query(EvalResult).one().resolved is False
+
+
+def test_generation_stops_before_checkout_when_disk_is_low(
+    tmp_path: Path, db_session: Session, auth_headers: dict, agent_deps: AgentDeps, monkeypatch
+) -> None:
+    from app.services.user import get_user_by_email
+
+    owner = get_user_by_email(db_session, "owner@example.com")
+    inst = _fixture_instance(tmp_path, monkeypatch)
+
+    def no_checkout(_inst):  # noqa: ANN001, ANN202
+        raise AssertionError("must not clone with a full disk")
+
+    monkeypatch.setattr(sb, "prepare_checkout", no_checkout)
+    monkeypatch.setattr(sb, "free_disk_gb", lambda: 0.5)
+    run = sb.get_or_create_run(db_session, "low-gen", [inst], ["rag"], {})
+
+    with pytest.raises(sb.LowDisk):
+        sb.generate(db_session, agent_deps, run, [inst], owner.id, log=lambda m: None)
+    assert db_session.query(EvalResult).filter_by(eval_run_id=run.id).count() == 0
+
+
+def test_free_disk_gb_reports_the_tightest_filesystem(monkeypatch) -> None:  # noqa: ANN001
+    monkeypatch.undo()  # use the real free_disk_gb, with faked filesystems
+    free = {"docker": 3e9}
+    monkeypatch.setattr(sb, "_docker_root", lambda: "docker")
+    monkeypatch.setattr(
+        sb.shutil,
+        "disk_usage",
+        lambda path: type("U", (), {"free": free.get(str(path), 50e9)})(),
+    )
+    assert sb.free_disk_gb() == pytest.approx(3.0)
+
+
+def test_run_all_finishes_only_when_generation_and_scoring_are_both_done(
+    monkeypatch,  # noqa: ANN001
+) -> None:
+    import argparse
+
+    from scripts import swebench_eval as cli
+
+    passes = {"generated": [True, True], "scored": [False, True]}
+    monkeypatch.setattr(cli, "cmd_generate", lambda a: passes["generated"].pop(0))
+    monkeypatch.setattr(cli, "cmd_score", lambda a: passes["scored"].pop(0))
+    reports = []
+    monkeypatch.setattr(cli, "cmd_report", lambda a: reports.append(1))
+
+    cli.cmd_run_all(argparse.Namespace(sleep=0))
+
+    assert len(reports) == 2  # a low-disk scoring stop triggered a second pass
+    assert passes == {"generated": [], "scored": []}

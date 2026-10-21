@@ -79,6 +79,56 @@ EVAL_SETTINGS = {
 }
 
 
+# Disk guards. Scoring builds one instance image at a time (~3.8 GB, removed
+# afterwards); generation needs room for a shallow clone plus its RAG index in
+# Postgres. Below these thresholds the harness stops cleanly — and resumes on
+# the next run — instead of filling the disk, which would also take down the
+# Postgres instance it writes to.
+MIN_FREE_GB_SCORE = 6.0
+MIN_FREE_GB_GENERATE = 2.0
+
+
+class LowDisk(Exception):
+    """Free disk space is below the safe threshold for the next step."""
+
+
+def _docker_root() -> str:
+    try:
+        proc = subprocess.run(
+            ["docker", "info", "--format", "{{.DockerRootDir}}"],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return "/"
+    root = proc.stdout.strip()
+    return root if proc.returncode == 0 and root else "/"
+
+
+def free_disk_gb() -> float:
+    """Free space (GB) on the tighter of the eval cache's and Docker's filesystems."""
+    cache = CACHE
+    while not cache.exists() and cache != cache.parent:
+        cache = cache.parent
+    free = []
+    for path in (cache, _docker_root()):
+        try:
+            free.append(shutil.disk_usage(path).free / 1e9)
+        except OSError:
+            continue
+    return min(free) if free else float("inf")
+
+
+def require_free_disk(min_gb: float, step: str) -> None:
+    free = free_disk_gb()
+    if free < min_gb:
+        raise LowDisk(
+            f"only {free:.1f} GB free; {step} needs at least {min_gb:.0f} GB. "
+            "Free some disk space and re-run — finished work is kept."
+        )
+
+
 _ORG_ID = re.compile(r"org_[A-Za-z0-9]+")
 
 
@@ -220,6 +270,7 @@ def generate(
         todo = [c for c in eval_run.configs if (inst.instance_id, c) not in done]
         if not todo:
             continue
+        require_free_disk(MIN_FREE_GB_GENERATE, f"checking out {inst.instance_id}")
         repo = prepare_checkout(inst)
         for config in todo:
             opts = CONFIGS[config]
@@ -314,6 +365,8 @@ def score(
         by_instance.setdefault(r.instance_id, []).append(r)
 
     for instance_id, results in by_instance.items():
+        if any(r.patch for r in results):  # only patches build an instance image
+            require_free_disk(MIN_FREE_GB_SCORE, f"scoring {instance_id}")
         for r in results:
             if not r.patch:  # nothing to apply: unresolved by definition
                 r.resolved, r.score_detail = False, {"reason": "no patch"}
