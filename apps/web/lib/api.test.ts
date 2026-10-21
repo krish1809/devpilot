@@ -127,3 +127,55 @@ describe("run trace client", () => {
     expect(calls[0][0]).toMatch(/\/api\/v1\/runs\/5\/trace$/);
   });
 });
+
+describe("streamRun (live run updates)", () => {
+  function sseResponse(chunks: string[]) {
+    const encoder = new TextEncoder();
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        chunks.forEach((c) => controller.enqueue(encoder.encode(c)));
+        controller.close();
+      },
+    });
+    return vi.fn(
+      async () => new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } }),
+    );
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("delivers each run snapshot and resolves when the server ends the stream", async () => {
+    globalThis.fetch = sseResponse([
+      'retry: 3000\n\nevent: run\ndata: {"id":7,"status":"running"}\n\n',
+      'event: run\ndata: {"id":7,"sta',
+      'tus":"validated"}\n\nevent: done\ndata: {"status":"validated"}\n\n',
+    ]);
+    const seen: string[] = [];
+
+    await api.streamRun(7, (run) => seen.push(run.status), new AbortController().signal);
+
+    expect(seen).toEqual(["running", "validated"]);
+  });
+
+  it("sends the token in the Authorization header, never in the URL", async () => {
+    vi.stubGlobal("window", { localStorage: { getItem: () => "secret-token" } });
+    const fetchMock = sseResponse([]);
+    globalThis.fetch = fetchMock;
+
+    await api.streamRun(3, () => undefined, new AbortController().signal);
+
+    const [url, init] = (fetchMock.mock.calls as unknown as [string, RequestInit][])[0];
+    expect(url).toMatch(/\/api\/v1\/runs\/3\/stream$/);
+    expect(url).not.toContain("secret-token");
+    expect((init.headers as Record<string, string>).Authorization).toBe("Bearer secret-token");
+  });
+
+  it("rejects with an ApiError when the stream cannot be opened", async () => {
+    globalThis.fetch = mockFetch(404, { detail: "Run not found" });
+    await expect(
+      api.streamRun(1, () => undefined, new AbortController().signal),
+    ).rejects.toBeInstanceOf(ApiError);
+  });
+});

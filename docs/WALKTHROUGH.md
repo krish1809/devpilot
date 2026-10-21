@@ -33,7 +33,7 @@ runs recorded this way.
 
 ```text
  Browser (Next.js, apps/web)                       ← what users see
-      │  HTTP/JSON (REST) + polling every 1.5 s
+      │  HTTP/JSON (REST) + a live SSE stream
       ▼
  FastAPI backend (apps/api)                        ← all logic lives here
       ├── PostgreSQL (+ pgvector)                  ← every table, the search index, agent checkpoints
@@ -65,7 +65,7 @@ This is exactly what happened in [issue #4](https://github.com/krish1809/devpilo
 |---|---|---|
 | 1 | You import the GitHub issue. The server resolves `main` to an exact commit SHA and stores a **Task** pinned to it (so every run sees identical code). | [`api/github.py`](../apps/api/app/api/github.py) → [`services/github.py`](../apps/api/app/services/github.py) → [`integrations/github_api.py`](../apps/api/app/integrations/github_api.py) |
 | 2 | You click **Run agent**. The API creates an **AgentRun** row (status `running`), returns immediately (HTTP 202), and starts the agent in a background thread. | `run_task` in [`api/agent.py`](../apps/api/app/api/agent.py) → `start_run` / `execute_run` in [`agents/runner.py`](../apps/api/app/agents/runner.py) |
-| 3 | The browser polls `GET /runs/{id}` every 1.5 s and redraws the timeline. | [`apps/web/app/tasks/[id]/page.tsx`](../apps/web/app/tasks/%5Bid%5D/page.tsx) |
+| 3 | The browser opens `GET /runs/{id}/stream` (Server-Sent Events) and redraws the timeline as each step lands; if the stream fails it falls back to polling `GET /runs/{id}` every 1.5 s. | [`apps/web/app/tasks/[id]/page.tsx`](../apps/web/app/tasks/%5Bid%5D/page.tsx) → `streamRun` in [`lib/api.ts`](../apps/web/lib/api.ts) → `stream_run` in [`api/agent.py`](../apps/api/app/api/agent.py) + [`services/run_stream.py`](../apps/api/app/services/run_stream.py) |
 | 4 | **prepare**: clone the repo at the pinned SHA into a temp folder; run the test in Docker; it fails as expected. | `_prepare` in [`agents/graph.py`](../apps/api/app/agents/graph.py), [`integrations/git_ops.py`](../apps/api/app/integrations/git_ops.py), [`sandbox/runner.py`](../apps/api/app/sandbox/runner.py) |
 | 5 | **retrieve**: split the repo into chunks, embed them, store in pgvector; search with the issue text. Top candidates: `weather.py`, `units.py`… | `_retrieve` in `graph.py`, [`rag/chunking.py`](../apps/api/app/rag/chunking.py), [`rag/index.py`](../apps/api/app/rag/index.py), [`rag/embeddings.py`](../apps/api/app/rag/embeddings.py) |
 | 6 | **plan**: one LLM call. Because no file was given, the planner must answer `TARGET: <file>` + a plan. It chose `units.py` (the root cause, not the file the issue mentions). The server double-checks that choice is an allowed file. | `_plan`, `_is_allowed_target` in `graph.py`; prompts in [`agents/prompts.py`](../apps/api/app/agents/prompts.py); LLM client [`integrations/llm.py`](../apps/api/app/integrations/llm.py) |
@@ -182,7 +182,7 @@ Hosting: **Vercel** (website) → **Render** (API, Docker) → **Neon** (Postgre
 | [`main.py`](../apps/api/app/main.py) | Creates the FastAPI app, middleware (CORS, showcase), registers routers |
 | `core/` | [`config.py`](../apps/api/app/core/config.py) all settings (from `.env`); [`security.py`](../apps/api/app/core/security.py) password hashing + JWT; [`rate_limit.py`](../apps/api/app/core/rate_limit.py); [`demo.py`](../apps/api/app/core/demo.py) showcase mode |
 | `api/` | HTTP routes: `auth`, `projects`, `audit`, `agent` (tasks/runs/approve/cancel/resume/trace), `github`, `evals`; [`deps.py`](../apps/api/app/api/deps.py) = "get DB session" + "get current user" |
-| `services/` | Logic behind routes: users, projects, audit log, task/run queries, GitHub import, eval queries |
+| `services/` | Logic behind routes: users, projects, audit log, task/run queries, live run streaming (SSE), GitHub import, eval queries |
 | `models/` | Tables (below) |
 | `schemas/` | Request/response shapes and validation (e.g. `target_path` can't contain `..`) |
 | `agents/` | The agent: [`graph.py`](../apps/api/app/agents/graph.py) nodes + wiring; [`runner.py`](../apps/api/app/agents/runner.py) start/execute/cancel/resume/approve; [`prompts.py`](../apps/api/app/agents/prompts.py); [`edits.py`](../apps/api/app/agents/edits.py) excerpts + SEARCH/REPLACE + syntax gate; [`risk.py`](../apps/api/app/agents/risk.py); [`checkpoint.py`](../apps/api/app/agents/checkpoint.py) |
@@ -210,12 +210,13 @@ Hosting: **Vercel** (website) → **Render** (API, Docker) → **Neon** (Postgre
 ### Frontend — `apps/web`
 | Path | What it does |
 |---|---|
-| [`lib/api.ts`](../apps/web/lib/api.ts) | Every API call in one typed client (adds the login token) |
+| [`lib/api.ts`](../apps/web/lib/api.ts) | Every API call in one typed client (adds the login token), including the live run stream |
+| [`lib/sse.ts`](../apps/web/lib/sse.ts) | Tiny Server-Sent Events parser used by the live run stream |
 | [`lib/auth.tsx`](../apps/web/lib/auth.tsx) | Who's logged in, login/logout/demo, showcase flag |
 | [`lib/types.ts`](../apps/web/lib/types.ts) | TypeScript shapes matching the API |
 | `app/login`, `app/register` | Auth pages (showcase-aware) |
 | [`app/tasks/page.tsx`](../apps/web/app/tasks/page.tsx) | Task list + create (import issue / manual) |
-| [`app/tasks/[id]/page.tsx`](../apps/web/app/tasks/%5Bid%5D/page.tsx) | A task and its runs: Run, live polling, plan, timeline, diff, retrieval, trace, checkpoints, approve/reject |
+| [`app/tasks/[id]/page.tsx`](../apps/web/app/tasks/%5Bid%5D/page.tsx) | A task and its runs: Run, live SSE updates, plan, timeline, diff, retrieval, trace, checkpoints, approve/reject |
 | [`app/evals/page.tsx`](../apps/web/app/evals/page.tsx) | Benchmarks |
 | [`components/ImportFromIssue.tsx`](../apps/web/components/ImportFromIssue.tsx) | Repo → issue → file picker |
 

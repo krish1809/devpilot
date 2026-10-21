@@ -1,10 +1,13 @@
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import StreamingResponse
 
 from app.agents import runner
 from app.agents.graph import AgentDeps
 from app.api.deps import CurrentUser, DbSession
+from app.core.config import get_settings
 from app.schemas.agent import (
     ApprovalRequest,
     CheckpointResponse,
@@ -19,8 +22,12 @@ from app.schemas.agent import (
 )
 from app.services import agent as agent_service
 from app.services import audit
+from app.services.run_stream import run_events
 
 router = APIRouter(tags=["agent"])
+
+STREAM_POLL_SECONDS = 1.0
+STREAM_HEARTBEAT_SECONDS = 15.0
 
 Deps = Annotated[AgentDeps, Depends(runner.get_agent_deps)]
 
@@ -97,6 +104,43 @@ def get_run(run_id: int, db: DbSession, current_user: CurrentUser) -> RunRespons
     run = _owned_run(db, run_id, current_user)
     db.refresh(run)  # background steps commit on other sessions
     return _run_response(db, run)
+
+
+@router.get("/runs/{run_id}/stream", response_class=StreamingResponse)
+def stream_run(
+    run_id: int, request: Request, db: DbSession, current_user: CurrentUser
+) -> StreamingResponse:
+    """Live run progress as Server-Sent Events: ``run`` snapshots, then ``done``.
+
+    Send the bearer token in the Authorization header (fetch-based SSE), never
+    in the URL — URLs end up in access logs.
+    """
+    _owned_run(db, run_id, current_user)
+    user_id = current_user.id
+
+    def read() -> dict | None:
+        db.expire_all()  # the graph commits from other sessions
+        try:
+            run = agent_service.get_run(db, run_id, user_id)
+            return None if run is None else _run_response(db, run).model_dump(mode="json")
+        finally:
+            db.rollback()  # end the read transaction; frees the connection between ticks
+
+    async def snapshot() -> dict | None:
+        return await run_in_threadpool(read)
+
+    events = run_events(
+        snapshot,
+        poll_seconds=STREAM_POLL_SECONDS,
+        heartbeat_seconds=STREAM_HEARTBEAT_SECONDS,
+        max_seconds=get_settings().agent_run_timeout_seconds + 60,
+        is_disconnected=request.is_disconnected,
+    )
+    return StreamingResponse(
+        events,
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.get("/runs/{run_id}/trace", response_model=RunTrace)

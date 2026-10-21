@@ -56,9 +56,10 @@ All endpoints require authentication and are owner-scoped.
 | POST | `/api/v1/tasks/from-issue` | Import an **open** GitHub issue (`repo_full_name`, `issue_number`, `base_branch?`, `target_path`, `test_command`); resolves the branch to a commit SHA and pins the task to it; verifies `target_path` exists at that SHA; `201`/`404`/`422` |
 | GET | `/api/v1/tasks` | List caller's tasks; `200` |
 | GET | `/api/v1/tasks/{id}` | Get a task; `200`/`404` |
-| POST | `/api/v1/tasks/{id}/run` | Start the LangGraph agent **in the background**; optional body `{use_rag?: bool}` (default `RAG_ENABLED`); `202` with the new run (`status: running`). Poll `GET /runs/{id}` |
+| POST | `/api/v1/tasks/{id}/run` | Start the LangGraph agent **in the background**; optional body `{use_rag?: bool}` (default `RAG_ENABLED`); `202` with the new run (`status: running`). Watch it with `GET /runs/{id}/stream` (or poll `GET /runs/{id}`) |
 | GET | `/api/v1/tasks/{id}/runs` | The task's runs, newest first (`id`, `status`, `attempts`, `test_passed`, …) |
 | GET | `/api/v1/runs/{id}` | A run: `status`, `plan`, `target_path` (given or localized), `use_rag`, `retrieval` (index stats, candidate files, retrieved chunk locations), `attempts`, `llm_calls`, `prompt_tokens`, `completion_tokens`, `diff`, `sandbox_output`, `events`, `pull_request`; `200`/`404` |
+| GET | `/api/v1/runs/{id}/stream` | **Live progress as Server-Sent Events** (`text/event-stream`): a `run` event carrying the full run (same shape as `GET /runs/{id}`) whenever it changes, then `done` once it leaves `running` (`timeout` after the run's wall-clock limit + 60 s; `: keep-alive` comments every 15 s). Send the bearer token in the `Authorization` header — the web client uses `fetch` streaming, not `EventSource`, so the token never goes in the URL. `401`/`404` like `GET /runs/{id}` |
 | GET | `/api/v1/runs/{id}/trace` | Every LLM call (node, model, prompt/completion tokens, latency, ok/error — no prompt text) and every audited MCP tool call (tool, redacted arguments, allowed/denied, outcome, latency); plus totals |
 | GET | `/api/v1/runs/{id}/checkpoints` | Every persisted graph step (oldest first): `step`, `next` node(s), `attempts`, `llm_calls`, `waiting_for_approval` |
 | POST | `/api/v1/runs/{id}/cancel` | Request cancellation of a `running` run (stops at the next node boundary → `cancelled`); `409` otherwise |
@@ -121,7 +122,7 @@ Response includes `id`, `owner_id`, `name`, `description`, `created_at`, and `up
 - No pagination yet.
 - Rate limiting is in-memory/per-process (fine for a single API process; a multi-replica deployment would need a shared store, which is out of scope for this portfolio project).
 - No application-wide error envelope yet (validation uses the default FastAPI/Pydantic `422` shape; not-found/auth use `{"detail": "..."}`).
-- Agent runs execute in the API process's background threads (FastAPI `BackgroundTasks`), not a separate worker; progress is polled, not streamed (no SSE). Cancellation is cooperative between graph steps.
+- Agent runs execute in the API process's background threads (FastAPI `BackgroundTasks`), not a separate worker; progress streams over SSE (the web client falls back to polling if the stream fails). Cancellation is cooperative between graph steps.
 
 ## Evolution rules
 Keep routes versioned, use explicit schemas, validate inputs, maintain consistent errors, and test success, validation, missing-resource, and authorization paths.

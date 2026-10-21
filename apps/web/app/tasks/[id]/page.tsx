@@ -71,21 +71,42 @@ export default function TaskDetailPage() {
     if (user && Number.isFinite(taskId)) load();
   }, [user, taskId, load]);
 
-  // Poll while the graph is working in the background.
+  // While the graph works in the background, stream its progress (SSE); fall
+  // back to polling if the stream can't be opened or ends early.
   const runId = run?.id;
   const isRunning = run?.status === "running";
   useEffect(() => {
     if (!runId || !isRunning) return;
-    const timer = setInterval(async () => {
-      try {
-        const next = await api.getRun(runId);
-        setRun(next);
-        if (next.status !== "running") loadRuns().catch(() => undefined);
-      } catch {
-        /* transient polling failure: try again next tick */
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setInterval> | undefined;
+    let finished = false;
+
+    const onUpdate = (next: AgentRun) => {
+      setRun(next);
+      if (next.status !== "running") {
+        finished = true;
+        loadRuns().catch(() => undefined);
       }
-    }, POLL_MS);
-    return () => clearInterval(timer);
+    };
+    const startPolling = () => {
+      if (finished || controller.signal.aborted || timer) return;
+      timer = setInterval(async () => {
+        try {
+          onUpdate(await api.getRun(runId));
+        } catch {
+          /* transient polling failure: try again next tick */
+        }
+      }, POLL_MS);
+    };
+
+    api
+      .streamRun(runId, onUpdate, controller.signal)
+      .then(startPolling, startPolling); // no-op once the run has finished
+
+    return () => {
+      controller.abort();
+      if (timer) clearInterval(timer);
+    };
   }, [runId, isRunning, loadRuns]);
 
   async function act(fn: () => Promise<AgentRun>, fallback: string) {

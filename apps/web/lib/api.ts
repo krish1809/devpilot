@@ -18,6 +18,7 @@ import type {
   Token,
   User,
 } from "./types";
+import { createSseParser } from "./sse";
 
 export const API_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "http://localhost:8000";
@@ -112,6 +113,42 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   return data as T;
 }
 
+/**
+ * Live run updates over Server-Sent Events. Uses fetch (not EventSource) so the
+ * bearer token travels in a header instead of the URL. Calls `onRun` with each
+ * snapshot; resolves when the server ends the stream (run finished or timed
+ * out) and rejects on network/HTTP errors or when `signal` aborts.
+ */
+async function streamRun(
+  runId: number,
+  onRun: (run: AgentRun) => void,
+  signal: AbortSignal,
+): Promise<void> {
+  const token = getStoredToken();
+  const headers: Record<string, string> = { Accept: "text/event-stream" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const response = await fetch(`${API_URL}/api/v1/runs/${runId}/stream`, {
+    headers,
+    cache: "no-store",
+    signal,
+  });
+  if (!response.ok || !response.body) {
+    throw new ApiError(response.status, `Live updates unavailable (${response.status})`);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  const feed = createSseParser((message) => {
+    if (message.event === "run") onRun(JSON.parse(message.data) as AgentRun);
+  });
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) return;
+    feed(decoder.decode(value, { stream: true }));
+  }
+}
+
 export const api = {
   register: (email: string, password: string) =>
     request<User>("/api/v1/auth/register", {
@@ -164,6 +201,8 @@ export const api = {
     }),
 
   getRun: (id: number) => request<AgentRun>(`/api/v1/runs/${id}`),
+
+  streamRun,
 
   listTaskRuns: (taskId: number) => request<RunSummary[]>(`/api/v1/tasks/${taskId}/runs`),
 

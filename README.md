@@ -90,7 +90,7 @@ single test ran.
 
 ```mermaid
 flowchart LR
-  UI["Next.js UI<br/>tasks · runs · approve · benchmarks"] -->|REST, polling| API["FastAPI"]
+  UI["Next.js UI<br/>tasks · runs · approve · benchmarks"] -->|REST + SSE| API["FastAPI"]
   API --> PG[("PostgreSQL + pgvector<br/>tasks · runs · events · traces<br/>LangGraph checkpoints · RAG index")]
   API -->|background run| G["LangGraph agent"]
   G -->|plan / code| LLM["LLM provider<br/>(Groq, configurable)"]
@@ -154,8 +154,8 @@ Public deployment is a read-only showcase (`DEMO_MODE=true`) — see [docs/DEPLO
   patch does too); multi-file changes are out of scope.
 - **Free-tier model.** Patch quality is bounded by `gpt-oss-120b` on Groq's free tier and its
   200k tokens/day; stronger models would score higher. The provider is configuration.
-- **Runs live in the API process** (background threads) and progress is polled — no separate
-  worker or streaming yet.
+- **Runs live in the API process** (background threads), not a separate worker; progress
+  streams to the browser over SSE.
 - **The hosted site is a showcase.** Running the agent needs Docker and an LLM key, so it runs
   locally; the public site shows recorded runs.
 - Deliberately out of scope for a portfolio project: multi-tenancy, billing, Kubernetes, a GitHub
