@@ -1,16 +1,16 @@
 # DevPilot — Working Memory
 
-**Last updated:** 2026-10-01
+**Last updated:** 2026-10-22
 **Roadmap authority:** [docs/PLAN.md](docs/PLAN.md) (9 phases). Ignore old phase numbers.
 
-**Current position:** Phases 1 ✅, 2 ✅ (walking skeleton, real PR), 3 ✅ (frontend),
-4 ✅ (real GitHub integration — issue #2 → PR #3, merged), 5 ✅ (LangGraph agent),
-6 ✅ (repository RAG + file localization), 7 🟡 (harness done; v2 benchmark running
-unattended over ~3 days of LLM quota), 8 ✅ in code (MCP server, tracing, injection defenses).
-9 ✅ deployed 2026-10-02: **https://devpilot-pied.vercel.app** (Vercel, `apps/web`) →
-API **https://devpilot-api-gr7a.onrender.com** (Render free, DEMO_MODE) → Neon Postgres. Showcase data
-imported; live flow verified in headless Chrome. Remaining: v2 benchmark finishing → re-export +
-re-import showcase, refresh README numbers/screenshots. SSE streaming still deferred.
+**Current position:** All 9 phases built. Live: **https://devpilot-pied.vercel.app** (Vercel, `apps/web`) →
+API **https://devpilot-api-gr7a.onrender.com** (Render free, DEMO_MODE) → Neon Postgres (both verified up 2026-10-22).
+**Only open item: the Phase 7 headline number.** The v2 SWE-bench loop died ~2026-10-02 after 1/20 instances
+(machine rebooted 2026-10-18). Restart is **blocked on disk space**: 1.8 GB free, scoring needs ≥6 GB (aim for ~8).
+The owner must free space (see docs/PROGRESS.md "Immediate next steps"); then restart → re-export/re-import showcase →
+refresh README numbers + benchmarks screenshot.
+2026-10-22 session: live run streaming over SSE (closes the Phase 3 SSE item) + an eval disk guard; backend **209**
+tests, web **29** tests, lint/tsc/build green.
 
 > Update this at the end of every session. Fuller tracking: [docs/PROGRESS.md](docs/PROGRESS.md).
 
@@ -27,7 +27,7 @@ re-import showcase, refresh README numbers/screenshots. SSE streaming still defe
 - `apps/web`: Next.js 14 + TS + Tailwind; auth pages + project list/create/detail; typed API client; loading/error/empty states. `npm run build`, lint, and 4 Vitest tests pass.
 - Basic JWT auth (register/login/me) + `get_current_user`.
 - **Agent UI:** `/tasks` (list + create) and `/tasks/[id]` — Run the agent, see status badge + event timeline + proposed diff + sandbox result, and Approve→PR / Reject. Nav has Tasks/Projects; post-login → `/tasks`.
-- Deferred: SSE live run streaming (runs are synchronous); per-task run history list.
+- Live progress streams over SSE since 2026-10-22 (see "Live run streaming" below); run history landed in Phase 5.
 
 ## ✅ Phase 4 — Real GitHub integration (done, proven live)
 - `app/integrations/github_api.py` (REST via httpx; token = `GITHUB_TOKEN` or fallback `gh auth token`; git gets it via `GIT_CONFIG_*` env, never URL/args).
@@ -42,7 +42,7 @@ re-import showcase, refresh README numbers/screenshots. SSE streaming still defe
 ## ✅ Phase 5 — LangGraph agent (done, proven live)
 - `app/agents/graph.py` (state graph + nodes + budgets/guards), `checkpoint.py` (PostgresSaver), `runner.py` (start/execute/cancel/resume/approve/checkpoint_history). `services/agent.py` is now queries only.
 - Graph: prepare → plan → code → test ⟲ (repair ≤3) → review → human_approval (`interrupt`) → publish; `fail` on exhausted attempts. Statuses added: `review_failed`, `cancelled`.
-- Runs start in the background (`POST /tasks/{id}/run` → 202); UI polls. Cancel is cooperative at node boundaries; resume continues from the last checkpoint (allowed for error/cancelled/stale-running).
+- Runs start in the background (`POST /tasks/{id}/run` → 202); UI streams progress over SSE (polling fallback). Cancel is cooperative at node boundaries; resume continues from the last checkpoint (allowed for error/cancelled/stale-running).
 - Bounds (config): `agent_max_attempts` 3, `agent_max_llm_calls` 8, `agent_max_tokens` 100k, `agent_run_timeout_seconds` 900, `agent_review_max_changed_lines` 300. Groq provider now reports token usage (`last_usage`).
 - ⚠️ Gotcha: `PostgresSaver.setup()` uses `CREATE INDEX CONCURRENTLY` → deadlocks if called while any transaction is open (e.g. lazily inside a request). It runs from `alembic upgrade head` (env.py) and in the test session fixture. Never call it lazily.
 - Migration head `b88d25944321`. Sandbox runs as host uid (root-owned files broke `git clean`).
@@ -62,9 +62,26 @@ re-import showcase, refresh README numbers/screenshots. SSE streaming still defe
 - Agent changes for real repos: excerpts + SEARCH/REPLACE edits for files > 12k chars (diff-hunk fallback; fuzzy only ≥3 lines & unique), prompt budgets, optional test command, lazy embeddings for repos > 3k chunks, IDF keyword filter, source-first candidates, daily-quota 429 stops immediately.
 - Constraints: Groq free tier = 8k TPM / 1k RPD (only gpt-oss-120b/20b + qwen available); CPU embeddings ~12 chunks/s; disk ~9 GB free → scorer deletes each instance image (~3.8 GB). `requests` tests hit live network → harness may flag `network_unreachable` infra failures.
 - **Groq daily cap: 200k tokens/day (rolling) for gpt-oss-120b** — ≈7 instances × 3 configs per day.
-- Runs (2026-10-01): `lite-s20-seed7-v1-nogate` = first 6 instances with the pre-syntax-gate agent (kept as an ablation). `lite-s20-seed7` = **v2 headline** (syntax gate on). An unattended loop runs `score v1 → report v1 → run-all v2 --with-gold` (log: `~/.cache/devpilot/swebench/run-all.log`); it sleeps 30 min between quota windows and rewrites `docs/eval/phase7-*.md` after every pass. If the machine restarts, re-run: `python -m scripts.swebench_eval run-all --name lite-s20-seed7 --n 20 --seed 7 --owner smoke-phase4@example.com --with-gold`.
+- Runs (2026-10-01): `lite-s20-seed7-v1-nogate` = first 6 instances with the pre-syntax-gate agent (kept as an ablation). `lite-s20-seed7` = **v2 headline** (syntax gate on). An unattended loop runs `score v1 → report v1 → run-all v2 --with-gold` (log: `~/.cache/devpilot/swebench/run-all.log`); it sleeps 30 min between quota windows and rewrites `docs/eval/phase7-*.md` after every pass. If the machine restarts, re-run (from `apps/api`, `.venv` active, with ≥6 GB free — ideally ~8): `nohup python -m scripts.swebench_eval run-all --name lite-s20-seed7 --n 20 --seed 7 --owner smoke-phase4@example.com --with-gold >> ~/.cache/devpilot/swebench/run-all.log 2>&1 &` (the CLI prints to stdout; the log is just this redirect).
+- ⚠️ **Status 2026-10-22:** the loop is NOT running. v2 has only `django__django-11620` done (rag ❌, oracle-file ❌, gold ✅). Disk is 99% full (1.8 GB free) so a restart would be refused.
+- **Disk guard (2026-10-22):** `app/evals/swebench.py` checks free space on the tighter of the eval cache and Docker's data root (`docker info` → `/var/lib/docker`) before each instance: generation needs `MIN_FREE_GB_GENERATE`=2 GB, scoring `MIN_FREE_GB_SCORE`=6 GB. Below that it raises `LowDisk`; the CLI prints why and returns; `run-all` sleeps and retries, and now finishes only when generation **and** scoring are both complete (before, a partial scoring pass could end the loop with unscored results).
 - Scoring lessons: harness `patch_successfully_applied=false` can mean the patched file didn't import (we saw IndentationError) → hence the syntax gate; "Image not found" was a transient Docker Hub failure → scorer now retries harness errors (3×) instead of scoring them.
 - ⚠️ Stop the loop by **exact PID**: `ps -eo pid,args | grep scripts.swebench_eval` then `kill <pid>` (also kill any `swebench.harness.run_evaluation` child and `docker rm -f` leftover `sweb.eval.*` containers). `pkill -f` patterns have twice matched the agent tool's own shell wrapper (`bash -c source …`) and killed it.
+
+## ✅ Live run streaming (SSE) — added 2026-10-22
+- `GET /api/v1/runs/{id}/stream` → `app/api/agent.py::stream_run` + `app/services/run_stream.py::run_events`.
+  Re-reads the run every 1 s (`db.expire_all()`, then `rollback()` to free the connection), emits `run` (full
+  `RunResponse` JSON) only on change, `done` when status ≠ `running`, `timeout` after `agent_run_timeout_seconds`+60,
+  `: keep-alive` every 15 s. Headers `Cache-Control: no-cache`, `X-Accel-Buffering: no`. No gzip middleware in the
+  stack (would buffer SSE) — keep it that way.
+- Web: `lib/sse.ts` + `api.streamRun` (fetch streaming; token in the Authorization header — `EventSource` can't send
+  headers and a URL token would hit access logs). `app/tasks/[id]/page.tsx` streams while `running`, falls back to
+  1.5 s polling on stream failure/timeout; a `finished` flag prevents a stray poll after the final snapshot.
+- Tests: `tests/test_run_stream.py` (8), `lib/sse.test.ts` (5), 3 `streamRun` tests in `lib/api.test.ts`.
+- Live check: local API on :8001, run 86 (devpilot-demo @ 5eec58f) streamed prepare→retrieve→plan→code→test→review→
+  validated→done in ~16 s. Run 86 + user `live-sse-<ts>@example.com` remain in the LOCAL dev DB, unapproved
+  (nothing published). The demo API on Render gets the endpoint on the next deploy; showcase runs are finished, so
+  there it sends one snapshot and `done`.
 
 ## ✅ Phase 8 — MCP server + observability + injection defenses (done in code)
 - `app/mcp/server.py`: `devpilot-tools` (MCP SDK **2.x** — `MCPServer`, not FastMCP), bound per process to one run + policy (`read`/`execute`). Tools: `run_tests` (only the task's configured command, in the sandbox), `git_diff`, `read_file` (confined, secrets refused), `search_code`. Denials are `ToolError`s (reason reaches client; crashes stay generic). Every call → `tool_calls` audit (redacted args). `app/mcp/client.py`: stdio subprocess in production (`AgentDeps.tool_server=stdio_target`), in-process in tests. The agent's sandbox runs go through it.
