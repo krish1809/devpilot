@@ -1,4 +1,5 @@
 from app.models.agent_run import AgentRun, Approval, PullRequest, RunEvent, RunStatus
+from app.models.app_state import AppState
 from app.models.audit import AuditLog
 from app.models.eval import EvalResult, EvalRun
 from app.models.project import Project
@@ -9,6 +10,7 @@ from app.models.user import User
 
 __all__ = [
     "AgentRun",
+    "AppState",
     "Approval",
     "AuditLog",
     "EvalResult",

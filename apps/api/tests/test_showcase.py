@@ -47,3 +47,52 @@ def test_export_then_import_under_the_demo_user(
     )
     assert db_session.query(LlmCall).filter_by(run_id=copied_run.id).count() == 2
     assert db_session.query(EvalResult).filter(EvalResult.agent_run_id.is_(None)).count() == 1
+
+
+# --------------------------------------------------------------------------- #
+# autoload: the deployed showcase refreshes itself from the bundled file
+# --------------------------------------------------------------------------- #
+def _bundle(tmp_path: Path, tasks: int = 0) -> Path:
+    path = tmp_path / "showcase.json"
+    path.write_text(json.dumps({"version": 1, "tasks": [], "evals": [], "n": tasks}))
+    return path
+
+
+def test_autoload_imports_once_per_content_change(db_session: Session, tmp_path: Path) -> None:
+    import hashlib
+
+    from app.models.app_state import AppState
+
+    path = _bundle(tmp_path)
+    assert showcase.autoload(db_session, path, demo_mode=True).startswith("imported")
+    assert showcase.autoload(db_session, path, demo_mode=True) == "unchanged"  # e.g. a restart
+
+    path.write_text(path.read_text().replace('"n": 0', '"n": 1'))  # a new export was deployed
+    assert showcase.autoload(db_session, path, demo_mode=True).startswith("imported")
+    state = db_session.get(AppState, showcase.STATE_KEY)
+    assert state.value == hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def test_autoload_only_runs_in_demo_mode(db_session: Session, tmp_path: Path) -> None:
+    assert showcase.autoload(db_session, _bundle(tmp_path), demo_mode=False) == (
+        "skipped (not in demo mode)"
+    )
+    missing = tmp_path / "nope.json"
+    assert showcase.autoload(db_session, missing, demo_mode=True) == "skipped (nope.json not found)"
+
+
+def test_autoload_command_never_blocks_startup(monkeypatch, capsys) -> None:  # noqa: ANN001
+    def broken_session():  # noqa: ANN202
+        raise RuntimeError("database unreachable")
+
+    monkeypatch.setattr(showcase, "SessionLocal", broken_session)
+    monkeypatch.setattr("sys.argv", ["showcase", "autoload"])
+
+    showcase.main()  # must not raise
+
+    assert "failed (continuing): RuntimeError: database unreachable" in capsys.readouterr().err
+
+
+def test_bundled_showcase_file_is_valid(tmp_path: Path) -> None:
+    data = json.loads(showcase.BUNDLED.read_text())
+    assert data["version"] == 1 and data["tasks"] and data["evals"]

@@ -32,26 +32,43 @@ provider's current terms).
      `postgresql://` prefix itself).
    - `CORS_ORIGINS` — leave as `http://localhost:3000` for now; you'll set the Vercel URL in step 4.
 4. Apply. The first build takes several minutes. On start the container runs
-   `alembic upgrade head` (creating all tables in Neon) and then serves.
+   `alembic upgrade head` (creating all tables in Neon), loads the showcase data (step 3), and
+   then serves.
 5. Check it: open `https://<your-service>.onrender.com/health` → `{"status":"ok"}`, and
    `/api/v1/config` → `{"demo_mode":true}`.
 
-## 3. Load the showcase data into Neon (from your machine)
+## 3. Showcase data — loads itself
 
-The repo contains the curated export, [`deploy/showcase.json`](../deploy/showcase.json).
-From `apps/api` with the virtualenv active:
+The repo contains the curated export, [`apps/api/showcase/showcase.json`](../apps/api/showcase/showcase.json),
+and it ships inside the API image. On every start, in `DEMO_MODE` only, the container runs
+`python -m scripts.showcase autoload`: it imports the bundled file under the read-only demo user
+if its content changed since the last import (the file's SHA-256 is kept in the `app_state`
+table), and otherwise does nothing. It never blocks startup — a failure is logged and the API
+serves anyway. So the first deploy fills Neon by itself, and **refreshing the showcase is just a
+commit**: export, commit, push → Render redeploys (the file is under `apps/api/`) → the new data
+is loaded on start. No database credentials need to leave Render.
+
+To refresh the export from your local database (from `apps/api`, virtualenv active):
 
 ```bash
-read -rs DATABASE_URL && export DATABASE_URL   # paste the Neon string, press Enter (input is hidden)
-python -m scripts.showcase import ../../deploy/showcase.json
-unset DATABASE_URL
+python -m scripts.showcase export --tasks 3 4 51 --evals lite-s20-seed7 lite-s20-seed7-v1-nogate
 ```
 
-The hidden prompt keeps the password off the screen and out of shell history, and it can't be
-broken by the `&` in Neon's URL (an unquoted `&` splits the command — and the import would then
-run against your *local* database instead). It prints the imported counts. It's idempotent — re-run it after refreshing the export:
-`python -m scripts.showcase export --tasks 3 4 51 --evals lite-s20-seed7 lite-s20-seed7-v1-nogate`
-(against your local database), commit, and import again.
+The SWE-bench pipeline does this automatically when a benchmark run completes
+([eval/README.md](eval/README.md)).
+
+⚠️ Never set `DEMO_MODE=true` against your development database: the import replaces the demo
+user's tasks and any benchmark runs with the same names.
+
+A manual import is still possible (e.g. to a different database). Use a hidden prompt so the
+password stays off the screen and out of shell history, and so the `&` in Neon's URL can't split
+the command (which would run the import against your *local* database):
+
+```bash
+read -rs DATABASE_URL && export DATABASE_URL   # paste the string, press Enter (input is hidden)
+python -m scripts.showcase import showcase/showcase.json
+unset DATABASE_URL
+```
 
 ## 4. Vercel — the web app
 

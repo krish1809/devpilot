@@ -1,9 +1,16 @@
 """Copy curated real runs and benchmark results into a public showcase DB.
 
-    # locally: write deploy/showcase.json from chosen tasks + benchmark runs
+    # locally: write apps/api/showcase/showcase.json from tasks + benchmark runs
     python -m scripts.showcase export --tasks 3 4 51 --evals lite-s20-seed7
-    # on the deployed database (DEMO_MODE): load it under the read-only demo user
-    DATABASE_URL=... python -m scripts.showcase import ../../deploy/showcase.json
+    # load it under the read-only demo user (any database, any time)
+    DATABASE_URL=... python -m scripts.showcase import showcase/showcase.json
+    # what the showcase deployment runs on every start (see the Dockerfile):
+    python -m scripts.showcase autoload
+
+`autoload` makes the deployed showcase refresh itself: committing a new
+showcase file redeploys the API, and on start it imports the bundled file only
+if its content changed since the last import (DEMO_MODE only; never blocks
+startup). No database credentials ever leave the host.
 
 Exports tasks with their runs, timeline events, pull requests, approvals, LLM
 and MCP tool-call traces, plus benchmark runs with every result. Local paths
@@ -14,8 +21,10 @@ demo user's tasks and any benchmark runs with the same names.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -23,15 +32,19 @@ from typing import Any
 from sqlalchemy import DateTime, delete, select
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.demo import get_or_create_demo_user
 from app.db.base import Base
 from app.db.session import SessionLocal
 from app.models.agent_run import AgentRun, Approval, PullRequest, RunEvent
+from app.models.app_state import AppState
 from app.models.eval import EvalResult, EvalRun
 from app.models.task import Task
 from app.models.trace import LlmCall, ToolCall
 
-DEFAULT_OUT = Path(__file__).resolve().parents[3] / "deploy" / "showcase.json"
+BUNDLED = Path(__file__).resolve().parents[1] / "showcase" / "showcase.json"
+DEFAULT_OUT = BUNDLED
+STATE_KEY = "showcase_sha256"
 _HOME = str(Path.home())
 _SCRUBS = [
     (re.compile(re.escape(_HOME)), "~"),
@@ -129,6 +142,26 @@ def import_(db: Session, data: dict) -> dict:
     return counts
 
 
+def autoload(db: Session, path: Path = BUNDLED, *, demo_mode: bool) -> str:
+    """Import the bundled showcase file if its content changed since the last import."""
+    if not demo_mode:
+        return "skipped (not in demo mode)"
+    if not path.exists():
+        return f"skipped ({path.name} not found)"
+    raw = path.read_bytes()
+    digest = hashlib.sha256(raw).hexdigest()
+    state = db.get(AppState, STATE_KEY)
+    if state is not None and state.value == digest:
+        return "unchanged"
+    counts = import_(db, json.loads(raw))
+    if state is None:
+        db.add(AppState(key=STATE_KEY, value=digest))
+    else:
+        state.value = digest
+    db.commit()
+    return f"imported {counts}"
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -138,7 +171,19 @@ def main() -> None:
     e.add_argument("--out", type=Path, default=DEFAULT_OUT)
     i = sub.add_parser("import")
     i.add_argument("path", type=Path)
+    a = sub.add_parser("autoload", help="import the bundled file if it changed (DEMO_MODE)")
+    a.add_argument("--file", type=Path, default=BUNDLED)
     args = parser.parse_args()
+
+    if args.cmd == "autoload":  # runs on every start: report problems, never block startup
+        try:
+            with SessionLocal() as db:
+                outcome = autoload(db, args.file, demo_mode=get_settings().demo_mode)
+            print(f"showcase autoload: {outcome}")
+        except Exception as exc:  # noqa: BLE001
+            print(f"showcase autoload failed (continuing): {type(exc).__name__}: {exc}",
+                  file=sys.stderr)  # fmt: skip
+        return
 
     with SessionLocal() as db:
         if args.cmd == "export":

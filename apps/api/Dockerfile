@@ -19,6 +19,8 @@ COPY app ./app
 COPY alembic ./alembic
 COPY alembic.ini ./alembic.ini
 COPY scripts ./scripts
+# Curated showcase data; imported on start in DEMO_MODE when it changes.
+COPY showcase ./showcase
 
 # Run as a non-root user.
 RUN useradd --create-home --uid 1000 appuser && chown -R appuser:appuser /app
@@ -26,5 +28,7 @@ USER appuser
 
 EXPOSE 8000
 
-# Apply migrations, then serve. Hosts like Render inject $PORT.
-CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# Apply migrations (a failure stops the container), load the bundled showcase
+# data if it changed (DEMO_MODE only; never blocks startup), then serve.
+# Hosts like Render inject $PORT.
+CMD ["sh", "-c", "alembic upgrade head && (python -m scripts.showcase autoload || true) && exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
