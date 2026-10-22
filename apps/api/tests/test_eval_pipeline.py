@@ -380,3 +380,66 @@ def test_publish_final_commits_report_readme_and_showcase(
     assert readme.endswith("More.\n")  # text outside the markers untouched
     exported = json.loads(_remote_file(remote, pipe.SHOWCASE_FILE))
     assert [e["eval_run"]["name"] for e in exported["evals"]] == ["fin"]
+
+
+# --------------------------------------------------------------------------- #
+# Best-effort README screenshot from the live site
+# --------------------------------------------------------------------------- #
+def _fake_capture(cmd, cwd=None, **kwargs):  # noqa: ANN001, ANN003, ANN202
+    out = Path(cmd[cmd.index("--out") + 1])
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_bytes(b"\x89PNG fake")
+    return subprocess.CompletedProcess(cmd, 0, "Saved", "")
+
+
+def test_screenshot_waits_for_the_live_site_then_publishes(tmp_path: Path) -> None:
+    served = [3, 3, 41]  # old showcase data until Render has redeployed
+    publisher = FakePublisher(tmp_path)
+
+    ok = pipe.refresh_screenshot(
+        "x", publisher=publisher, site="https://site", api="https://api", expected_results=41,
+        web_dir=tmp_path, count=lambda api, name: served.pop(0), run=_fake_capture,
+        sleep=lambda s: None, log=lambda m: None,
+    )  # fmt: skip
+
+    assert ok and served == []
+    assert (tmp_path / pipe.SCREENSHOT).read_bytes().startswith(b"\x89PNG")
+    assert publisher.messages == ["docs: refresh the benchmarks screenshot (x) [automated]"]
+
+
+def test_screenshot_is_skipped_if_the_site_never_updates(tmp_path: Path) -> None:
+    publisher = FakePublisher(tmp_path)
+    ok = pipe.refresh_screenshot(
+        "x", publisher=publisher, site="s", api="a", expected_results=41, web_dir=tmp_path,
+        polls=3, count=lambda api, name: 3, run=_fake_capture, sleep=lambda s: None,
+        log=lambda m: None,
+    )  # fmt: skip
+    assert ok is False and publisher.messages == []
+
+
+def test_a_failed_screenshot_never_fails_a_completed_run(tmp_path: Path, monkeypatch) -> None:  # noqa: ANN001
+    monkeypatch.setattr(pipe, "publish_progress", lambda name, **k: False)
+    monkeypatch.setattr(pipe, "ci_score", lambda name, **k: 0)
+    monkeypatch.setattr(pipe, "publish_final", lambda name, **k: True)
+    monkeypatch.setattr(pipe, "disable_service", lambda: None)
+    monkeypatch.setattr(pipe, "_counts_all", lambda db, name: 41)
+
+    def boom(*a, **k):  # noqa: ANN002, ANN003, ANN202
+        raise RuntimeError("chrome crashed")
+
+    monkeypatch.setattr(pipe, "refresh_screenshot", boom)
+    logs: list[str] = []
+
+    @contextmanager
+    def no_db():  # noqa: ANN202
+        yield None
+
+    pipe.run_pipeline(
+        name="x", generate=lambda: True, with_gold=False, publisher=None, actions=None,
+        session_factory=no_db, showcase_tasks=[], showcase_evals=["x"], ablation=None,
+        marker=tmp_path / "done", sleep_seconds=0, site="https://site", api="https://api",
+        sleep=lambda s: None, log=logs.append,
+    )  # fmt: skip
+
+    assert (tmp_path / "done").exists()
+    assert any("Screenshot refresh failed (RuntimeError: chrome crashed)" in m for m in logs)

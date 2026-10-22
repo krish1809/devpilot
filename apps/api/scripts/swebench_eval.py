@@ -179,6 +179,8 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
         marker=sb.CACHE / f"pipeline-{args.name}.done",
         sleep_seconds=args.sleep,
         ci_attempts=args.ci_attempts,
+        site=args.site,
+        api=args.api,
     )
 
 
@@ -238,6 +240,7 @@ def main() -> None:
         ("--ci-attempts", {"type": int, "default": 5}),
         ("--showcase-tasks", {"nargs": "*", "type": int, "default": [3, 4, 51]}),
         ("--showcase-evals", {"nargs": "*"}), ("--ablation", {"default": None}),
+        ("--site", {"default": None}), ("--api", {"default": None}),
     ):  # fmt: skip
         pl.add_argument(flag, **kw)
     pl.add_argument("--configs", nargs="+", default=list(sb.CONFIGS), choices=list(sb.CONFIGS))

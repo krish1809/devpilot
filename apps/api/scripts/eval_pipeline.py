@@ -31,6 +31,7 @@ README_START = "<!-- swebench:start -->"
 README_END = "<!-- swebench:end -->"
 SHOWCASE_FILE = "apps/api/showcase/showcase.json"
 SERVICE = "devpilot-benchmark.service"
+SCREENSHOT = "docs/images/benchmarks.png"
 
 Run = Callable[..., subprocess.CompletedProcess]
 
@@ -314,6 +315,18 @@ def _counts(db, name: str) -> tuple[int, int, int]:  # noqa: ANN001
     return attempted, len(run.instance_ids), sum(1 for r in rows if r.resolved is None)
 
 
+def _counts_all(db, name: str) -> int:  # noqa: ANN001
+    """All results of the run (what the showcase export carries)."""
+    from sqlalchemy import func, select
+
+    from app.models.eval import EvalResult
+
+    run = _eval_run(db, name)
+    return db.scalar(
+        select(func.count()).select_from(EvalResult).where(EvalResult.eval_run_id == run.id)
+    )
+
+
 def _write_report(db, name: str, root: Path) -> list[str]:  # noqa: ANN001
     from app.evals import report
 
@@ -452,6 +465,61 @@ def publish_final(
         return publisher.publish(write, message)
 
 
+def live_result_count(api: str, name: str) -> int | None:
+    """How many results of eval run ``name`` the deployed showcase API serves."""
+    import httpx
+
+    api = api.rstrip("/")
+    try:
+        token = httpx.post(f"{api}/api/v1/auth/demo", timeout=90).json()["access_token"]
+        headers = {"Authorization": f"Bearer {token}"}
+        runs = httpx.get(f"{api}/api/v1/evals", headers=headers, timeout=60).json()
+        match = next((r for r in runs if r.get("name") == name), None)
+        if match is None:
+            return None
+        detail = httpx.get(f"{api}/api/v1/evals/{match['id']}", headers=headers, timeout=60)
+        return len(detail.json().get("results", []))
+    except (httpx.HTTPError, KeyError, ValueError, TypeError):
+        return None
+
+
+def refresh_screenshot(
+    name: str,
+    *,
+    publisher: Publisher,
+    site: str,
+    api: str,
+    expected_results: int,
+    web_dir: Path,
+    polls: int = 60,
+    interval: float = 30,
+    count: Callable[[str, str], int | None] = live_result_count,
+    run: Run | None = None,
+    sleep: Callable[[float], None] | None = None,
+    log: Callable[[str], None] = print,
+) -> bool:
+    """Once the live showcase serves the final results, re-capture the README screenshot."""
+    sleep = sleep or time.sleep
+    for _ in range(polls):  # Render rebuilds, then the API loads the new showcase file
+        if count(api, name) == expected_results:
+            break
+        sleep(interval)
+    else:
+        log("The live site never showed the final results; keeping the old screenshot.")
+        return False
+
+    def write(root: Path) -> list[str]:
+        out = root / SCREENSHOT
+        _run(
+            ["node", "scripts/capture-benchmarks.mjs", "--site", site, "--run", name,
+             "--out", str(out)],
+            cwd=web_dir, run=run,
+        )  # fmt: skip
+        return [SCREENSHOT]
+
+    return publisher.publish(write, f"docs: refresh the benchmarks screenshot ({name}) [automated]")
+
+
 def run_pipeline(
     *,
     name: str,
@@ -466,6 +534,9 @@ def run_pipeline(
     marker: Path,
     sleep_seconds: int,
     ci_attempts: int = 5,
+    site: str | None = None,
+    api: str | None = None,
+    web_dir: Path = REPO_ROOT / "apps" / "web",
     sleep: Callable[[float], None] | None = None,
     log: Callable[[str], None] = print,
 ) -> None:
@@ -514,3 +585,13 @@ def run_pipeline(
     marker.write_text(datetime.now(UTC).isoformat())
     disable_service()
     log(f"{name}: complete — results published.")
+
+    if site and api:  # 4. best effort: the README screenshot, from the live site
+        try:
+            with session_factory() as db:
+                expected = _counts_all(db, name)
+            if refresh_screenshot(name, publisher=publisher, site=site, api=api,
+                                  expected_results=expected, web_dir=web_dir, log=log):  # fmt: skip
+                log("Published the refreshed benchmarks screenshot.")
+        except Exception as exc:  # noqa: BLE001 - never undo a completed run over a picture
+            log(f"Screenshot refresh failed ({type(exc).__name__}: {exc}); results are published.")

@@ -92,13 +92,18 @@ login after a reboot:
 
 ```bash
 infra/systemd/install.sh --name lite-s20-seed7 --n 20 --seed 7 --owner you@example.com \
-    --with-gold --ablation lite-s20-seed7-v1-nogate
+    --with-gold --ablation lite-s20-seed7-v1-nogate \
+    --site https://devpilot-pied.vercel.app --api https://devpilot-api-gr7a.onrender.com
 tail -f ~/.cache/devpilot/swebench/pipeline.log      # progress
 systemctl --user disable --now devpilot-benchmark    # stop
 ```
 
 When it finishes it writes `~/.cache/devpilot/swebench/pipeline-<name>.done` and disables the
-service.
+service. With `--site`/`--api` it then waits until the live showcase serves the final results and
+re-captures `docs/images/benchmarks.png` with
+[`apps/web/scripts/capture-benchmarks.mjs`](../../apps/web/scripts/capture-benchmarks.mjs)
+(playwright-core driving the system Chrome) — best effort: a failure there never undoes a
+completed run.
 
 ### Constraints that shaped the setup
 
