@@ -1,27 +1,29 @@
 # SWE-bench Lite — DevPilot (lite-s20-seed7)
 
-Seeded random sample of **20** of the 300 SWE-bench Lite test instances (seed 7), LLM `openai/gpt-oss-120b` (Groq free tier), embeddings `BAAI/bge-small-en-v1.5`. Patches scored with the **official SWE-bench harness** (`swebench.harness.run_evaluation`): an instance is resolved only if all FAIL_TO_PASS and PASS_TO_PASS tests pass.
+Seeded random sample of **20** of the 300 SWE-bench Lite test instances (seed 7); **9 attempted so far**. LLM `openai/gpt-oss-120b` (Groq free tier), embeddings `BAAI/bge-small-en-v1.5`. Patches scored with the **official SWE-bench harness** (`swebench.harness.run_evaluation`): an instance is resolved only if all FAIL_TO_PASS and PASS_TO_PASS tests pass.
 
 The agent never sees the benchmark's tests (standard setting): it gets the issue text, retrieves/plans/edits one file, and the automated reviewer gates the diff.
 
 | Config | Resolved | Resolve rate (95% CI) | Patch produced | Edited gold file | Avg LLM calls | Avg tokens | Avg time |
 |---|---|---|---|---|---|---|---|
-| **RAG, issue only** (realistic) | 0/1 | 0% (0%–79%) | 1/1 | 0/1 | 2.0 | 5,482 | 6s |
-| Oracle file, no retrieval | 0/1 | 0% (0%–79%) | 1/1 | 1/1 | 2.0 | 4,656 | 6s |
-| Oracle file + RAG context | 0/0 | not scored | 0/0 | 0/0 | 0.0 | 0 | 0s |
+| **RAG, issue only** (realistic) | 0/1 | 0% (0%–79%) | 6/9 | 5/9 | 2.7 | 8,429 | 99s |
+| Oracle file, no retrieval | 0/1 | 0% (0%–79%) | 8/9 | 9/9 | 2.4 | 6,200 | 42s |
+| Oracle file + RAG context | 0/0 | not scored | 6/8 | 8/8 | 2.6 | 9,681 | 57s |
 | Reference (gold) patch — environment ceiling | 1/1 | 100% (21%–100%) | 1/1 | 1/1 | 0.0 | 0 | 0s |
+
+Scored by: GitHub Actions https://github.com/krish1809/devpilot/actions/runs/39701119345.
 
 | Instance | rag | oracle-file | oracle-file+rag | gold |
 |---|---|---|---|---|
-| django__django-11620 | ❌ validated | ❌ validated | — | ✅ reference |
-| django__django-11848 | — | — | — | — |
-| django__django-12113 | — | — | — | — |
-| django__django-12453 | — | — | — | — |
-| django__django-12497 | — | — | — | — |
-| django__django-12915 | — | — | — | — |
-| django__django-13028 | — | — | — | — |
-| django__django-13158 | — | — | — | — |
-| django__django-14672 | — | — | — | — |
+| django__django-11620 | ❌ validated | ❌ validated | · validated | ✅ reference |
+| django__django-11848 | · validated | · validated | · validated | — |
+| django__django-12113 | · validated | · validated | · validated | — |
+| django__django-12453 | · validated | · validated | · validated | — |
+| django__django-12497 | · error | · validated | · error | — |
+| django__django-12915 | · validated | · validated | · validated | — |
+| django__django-13028 | · validated | · validated | · validated | — |
+| django__django-13158 | · error | · error | · error | — |
+| django__django-14672 | · error | · validated | — | — |
 | django__django-16379 | — | — | — | — |
 | matplotlib__matplotlib-23299 | — | — | — | — |
 | pylint-dev__pylint-7228 | — | — | — | — |
