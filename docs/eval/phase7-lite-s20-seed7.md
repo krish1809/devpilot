@@ -8,7 +8,7 @@ The agent never sees the benchmark's tests (standard setting): it gets the issue
 |---|---|---|---|---|---|---|---|
 | **RAG, issue only** (realistic) | 0/1 | 0% (0%–79%) | 7/10 | 6/10 | 2.6 | 8,164 | 90s |
 | Oracle file, no retrieval | 0/1 | 0% (0%–79%) | 9/10 | 10/10 | 2.4 | 6,144 | 38s |
-| Oracle file + RAG context | 0/0 | not scored | 7/9 | 9/9 | 2.6 | 9,439 | 51s |
+| Oracle file + RAG context | 0/0 | not scored | 8/10 | 10/10 | 2.5 | 9,249 | 47s |
 | Reference (gold) patch — environment ceiling | 1/1 | 100% (21%–100%) | 1/1 | 1/1 | 0.0 | 0 | 0s |
 
 Scored by: GitHub Actions https://github.com/krish1809/devpilot/actions/runs/39701119345.
@@ -24,7 +24,7 @@ Scored by: GitHub Actions https://github.com/krish1809/devpilot/actions/runs/397
 | django__django-13028 | · validated | · validated | · validated | — |
 | django__django-13158 | · error | · error | · error | — |
 | django__django-14672 | · error | · validated | · validated | — |
-| django__django-16379 | · validated | · validated | — | — |
+| django__django-16379 | · validated | · validated | · validated | — |
 | matplotlib__matplotlib-23299 | — | — | — | — |
 | pylint-dev__pylint-7228 | — | — | — | — |
 | scikit-learn__scikit-learn-11040 | — | — | — | — |
