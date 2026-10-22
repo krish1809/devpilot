@@ -41,7 +41,7 @@
   "summary": [
     {
       "config": "rag",
-      "generated": 12,
+      "generated": 13,
       "scored": 1,
       "resolved": 0,
       "resolve_rate": 0.0,
@@ -50,11 +50,11 @@
         0.7934567085261071
       ],
       "infra_failures": [],
-      "with_patch": 8,
-      "localized": 7,
-      "avg_tokens": 7456.333333333333,
-      "avg_llm_calls": 2.3333333333333335,
-      "avg_seconds": 75.61666666666666
+      "with_patch": 9,
+      "localized": 8,
+      "avg_tokens": 7348.538461538462,
+      "avg_llm_calls": 2.3076923076923075,
+      "avg_seconds": 70.33846153846153
     },
     {
       "config": "oracle-file",
@@ -623,6 +623,20 @@
       "completion_tokens": 0,
       "seconds": 0.1,
       "error": "`git checkout --quiet d597f252915ddcaaa15ccdfcb35670152cb83587 --` failed: fatal: reference is not a tree: d597f252915ddcaaa15ccdfcb35670152cb83587"
+    },
+    {
+      "instance_id": "scikit-learn__scikit-learn-11040",
+      "config": "rag",
+      "status": "validated",
+      "target_path": "sklearn/neighbors/base.py",
+      "gold_path": "sklearn/neighbors/base.py",
+      "localized": true,
+      "resolved": null,
+      "llm_calls": 2,
+      "prompt_tokens": 4401,
+      "completion_tokens": 1654,
+      "seconds": 7.0,
+      "error": null
     }
   ]
 }
