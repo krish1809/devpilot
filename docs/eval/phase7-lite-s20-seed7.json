@@ -41,7 +41,7 @@
   "summary": [
     {
       "config": "rag",
-      "generated": 13,
+      "generated": 14,
       "scored": 1,
       "resolved": 0,
       "resolve_rate": 0.0,
@@ -50,11 +50,11 @@
         0.7934567085261071
       ],
       "infra_failures": [],
-      "with_patch": 9,
-      "localized": 8,
-      "avg_tokens": 7348.538461538462,
-      "avg_llm_calls": 2.3076923076923075,
-      "avg_seconds": 70.33846153846153
+      "with_patch": 10,
+      "localized": 9,
+      "avg_tokens": 7269.714285714285,
+      "avg_llm_calls": 2.2857142857142856,
+      "avg_seconds": 65.80714285714285
     },
     {
       "config": "oracle-file",
@@ -664,6 +664,20 @@
       "prompt_tokens": 4401,
       "completion_tokens": 1654,
       "seconds": 7.0,
+      "error": null
+    },
+    {
+      "instance_id": "scikit-learn__scikit-learn-15535",
+      "config": "rag",
+      "status": "validated",
+      "target_path": "sklearn/metrics/cluster/_supervised.py",
+      "gold_path": "sklearn/metrics/cluster/_supervised.py",
+      "localized": true,
+      "resolved": null,
+      "llm_calls": 2,
+      "prompt_tokens": 4156,
+      "completion_tokens": 2089,
+      "seconds": 6.9,
       "error": null
     }
   ]
