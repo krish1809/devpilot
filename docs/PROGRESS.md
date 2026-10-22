@@ -11,12 +11,13 @@ plan → code → test with a bounded repair loop → review → human approval 
 runs in the background, checkpoints every step to Postgres, streams its progress to
 the browser over SSE, and is capped on attempts, LLM calls, tokens and time.
 
-**The one open item is the Phase 7 headline number.** The SWE-bench Lite harness
-works, but the 20-instance v2 benchmark stopped after 1 instance (the unattended
-loop died around 2026-10-02 and the machine rebooted on 2026-10-18). Restarting it
-is blocked: the disk is 99% full (≈1.8 GB free) and scoring needs ≈8 GB free (each
-instance image is ≈3.8 GB). Once the owner frees space, restart it (command in
-"Immediate next steps"), then refresh the README numbers and the showcase data.
+**The Phase 7 headline number is being produced unattended** (since 2026-10-22, 06:16 IST).
+A systemd user service on the owner's laptop generates the remaining SWE-bench patches
+(paced by Groq's 200k tokens/day — about 3 days), then scores every patch in **GitHub
+Actions** (the laptop has no room for the per-instance Docker images), then publishes the
+report, the README numbers, the showcase data (which the deployed API loads on its own) and a
+fresh screenshot — with no one at the keyboard. CI scoring was validated first: it reproduced
+the local verdicts exactly. See "SWE-bench pipeline" below.
 
 ## Progress against PLAN.md phases
 
@@ -28,9 +29,9 @@ instance image is ≈3.8 GB). Once the owner frees space, restart it (command in
 | 4 | Real GitHub integration | ✅ Done | List repos/issues/tree, import issue → task pinned to (repo, branch, SHA), PR via REST with `Fixes #N`; 91 backend tests. Proven live: devpilot-demo issue #2 → PR #3 |
 | 5 | LangGraph agent | ✅ Done | Graph + Postgres checkpoints + interrupt-based approval, background runs, cancel/resume, budgets; 103 backend tests; proven live incl. resume across a server restart |
 | 6 | Repository RAG | ✅ Done | pgvector + FTS hybrid retrieval, file localization; smoke eval: root-cause localization 5/5 with RAG vs 2/5 without ([eval/phase6-rag.md](eval/phase6-rag.md)) |
-| 7 | Evaluation on SWE-bench Lite | 🟡 Harness done, headline run incomplete | Harness + official scoring + results UI built. v1 ablation (6 instances, pre-syntax-gate): RAG 2/6, oracle-file 3/6. **v2 headline (20 instances): only 1/20 run** — loop stopped ~2026-10-02; restart blocked on disk space (needs ≈8 GB free). See [eval/README.md](eval/README.md) |
+| 7 | Evaluation on SWE-bench Lite | 🟡 Running unattended | Harness + official scoring + results UI. v1 ablation (6 instances, pre-syntax-gate): RAG 2/6, oracle-file 3/6. **v2 headline (20 instances)** resumed 2026-10-22 as an unattended pipeline: local generation → scoring in GitHub Actions (validated: identical verdicts to local scoring) → auto-publish. 2/20 instances generated at launch; ETA ≈3 days. See [eval/README.md](eval/README.md) |
 | 8 | One MCP server + observability | ✅ Done | `devpilot-tools` MCP server (per-run binding, permission policy, audit log; the agent's sandbox runs go through it), LLM/tool-call tracing + UI, prompt-injection tests, risky-change warnings. Langfuse skipped (disk); built-in tracing instead |
-| 9 | Deploy + portfolio polish | ✅ Live at [devpilot-pied.vercel.app](https://devpilot-pied.vercel.app) | Vercel (web) → Render free (API, DEMO_MODE) → Neon (Postgres + pgvector). Read-only showcase mode, showcase export/import, [DEPLOY.md](DEPLOY.md), product README with screenshots/GIF, CI green. Pending: refresh numbers + showcase data after the v2 benchmark |
+| 9 | Deploy + portfolio polish | ✅ Live at [devpilot-pied.vercel.app](https://devpilot-pied.vercel.app) | Vercel (web) → Render free (API, DEMO_MODE) → Neon (Postgres + pgvector). Read-only showcase that **loads its own data on deploy** (autoload, since 2026-10-22), [DEPLOY.md](DEPLOY.md), product README with screenshots/GIF, CI green. The pipeline refreshes numbers, showcase data and the benchmarks screenshot when the v2 run completes |
 
 ## Backend detail (Phase 1)
 - API: `GET /health`; `/api/v1/auth/{register,login,me}`; `/api/v1/projects` CRUD; `/api/v1/audit/me`.
@@ -82,23 +83,53 @@ instance image is ≈3.8 GB). Once the owner frees space, restart it (command in
 - Live check (2026-10-22, local API + real Groq + Docker sandbox): run 86 (devpilot-demo @ `5eec58f`) streamed prepare → retrieve → plan → code → test → review → `validated` → `done` over ~16 s. That run is left `validated` (unapproved) in the local dev DB — nothing was published.
 
 ## Eval disk guard (added 2026-10-22)
-- The unattended benchmark used to start scoring regardless of free space; each instance image is ≈3.8 GB, so on
-  today's 99%-full disk it would have filled the filesystem (and taken Postgres down with it).
-- `app/evals/swebench.py`: `free_disk_gb()` measures the tighter of the eval cache's and Docker's data-root
-  filesystems; `require_free_disk()` raises `LowDisk` before each instance (generation ≥ 2 GB, scoring ≥ 6 GB).
-  The CLI prints the reason and stops cleanly; finished work is kept and resumes on the next run.
-- `run-all` now finishes only when generation **and** scoring are both complete (previously a scoring pass cut
-  short could still end the loop with unscored results). It sleeps and retries otherwise.
-- Tests: 5 new in `tests/test_evals.py` (scoring/generation stop before any image or clone, patch-less results
-  still score, tightest-filesystem measurement, run-all completion). Verified on this machine: both steps are
-  currently refused (1.8 GB free).
+- Local scoring used to start regardless of free space. `app/evals/swebench.py` now checks the
+  tighter of the eval cache's and Docker's filesystems before each instance: generation needs
+  2 GB; scoring needs `max(6 GB, 4 × compressed image size + 1 GB)`, the size looked up on Docker
+  Hub (Docker's containerd store keeps compressed and unpacked layers; Matplotlib's image is
+  3.07 GB compressed). Below that it raises `LowDisk`; `run-all`/`pipeline` sleep and retry and
+  finish only when generation **and** scoring are complete.
+
+## SWE-bench pipeline (added 2026-10-22)
+- **Why:** the laptop's disk (≈3.5 GB free after a safe cache cleanup) can't hold SWE-bench
+  images (≈1–3 GB compressed, ~3× unpacked), and the previous unattended loop died with its
+  session on 2026-10-02.
+- **Scoring in CI:** `.github/workflows/swebench-score.yml` + `apps/api/scripts/ci_score.py`
+  (one job per instance; frees ~25 GB; `swebench==5.0.2`; retries harness errors) → merged
+  `swebench-scores` artifact. `app/evals/harness_io.py` (stdlib only) is shared with local
+  scoring so both run the identical command and parse verdicts the same way. Predictions
+  (every patch) are committed to `docs/eval/predictions/<name>.jsonl`.
+- **Validated 2026-10-22:** `ci-score --force` on django-11620's three patches
+  ([run](https://github.com/krish1809/devpilot/actions/runs/39701119345), 4 min) gave exactly the
+  local verdicts — gold ✅ (FAIL_TO_PASS 1/1, PASS_TO_PASS 66/66), rag ❌, oracle-file ❌.
+- **Pipeline:** `python -m scripts.swebench_eval pipeline …` (`apps/api/scripts/eval_pipeline.py`):
+  generate until done (publishing the partial report and the README's progress line after each
+  productive pass) → CI scoring until every result has a verdict → one commit with the final
+  report, README numbers and showcase file → Render redeploys and the API loads it → re-capture
+  `docs/images/benchmarks.png` from the live site (`apps/web/scripts/capture-benchmarks.mjs`,
+  best effort). Publishes from a dedicated clone (`~/.cache/devpilot/swebench/publish-repo`),
+  never the owner's checkout; its commits end in `[automated]`.
+- **Running as** the systemd user service `devpilot-benchmark` (installed with
+  `infra/systemd/install.sh`): survives the terminal, restarts on failure, resumes at login after
+  a reboot, and disables itself when done (marker `~/.cache/devpilot/swebench/pipeline-lite-s20-seed7.done`).
+  Log: `~/.cache/devpilot/swebench/pipeline.log`.
+- **Showcase autoload:** the curated export moved to `apps/api/showcase/showcase.json` and ships in
+  the API image; on start (DEMO_MODE only) the container imports it if its SHA-256 changed
+  (`app_state` table, migration `cd35ce4e3392`); never blocks startup. Deployed 2026-10-22: Neon
+  re-imported itself (demo task ids are now 4–6).
+- Tests: backend 241 passed (ci_score 6, pipeline 18 incl. real git against a bare repo with a
+  push race, evals +8, showcase +4); web 29; lint/tsc/build green; CI green.
 
 ## Immediate next steps
-1. **Free disk space** (owner): ≈8 GB free is needed before the benchmark can score instances. Largest candidates seen 2026-10-22: `~/.cache/uv` (6.6 GB; `uv cache prune`), `~/.cache/huggingface` (4.2 GB), `~/Downloads` (3.7 GB), `~/.cache/google-chrome` (1.2 GB), Docker build cache/dangling images (`docker builder prune`, `docker image prune`).
-2. **Restart the v2 benchmark** (resumes where it left off), from `apps/api` with `.venv` active:
-   `nohup python -m scripts.swebench_eval run-all --name lite-s20-seed7 --n 20 --seed 7 --owner smoke-phase4@example.com --with-gold >> ~/.cache/devpilot/swebench/run-all.log 2>&1 &`
-   Groq's free tier allows ≈200k tokens/day → ≈3 days for the remaining 19 instances. Stop it only by exact PID (see memory.md).
-3. When it finishes: re-export `deploy/showcase.json`, re-import into Neon (owner enters the URL via `read -rs`), refresh the README numbers and `docs/images/benchmarks.png`.
+Nothing needs a human for the benchmark. To watch it:
+`tail -f ~/.cache/devpilot/swebench/pipeline.log`, `systemctl --user status devpilot-benchmark`,
+and the `[automated]` commits on GitHub. To stop it: `systemctl --user disable --now devpilot-benchmark`.
+
+1. (owner) Confirm the Neon `neondb_owner` password was reset after it was pasted in chat on
+   2026-10-02 — it needs the Neon and Render dashboards (reset in Neon, paste the new URL into
+   Render's `DATABASE_URL`); an agent has no access to either.
+2. When the pipeline finishes (≈3 days): check the final commit, the README numbers and the live
+   Benchmarks page; then update this file and memory.md with the headline result.
 
 ## Limitations
 Single-file agent (the task may name the file, or the agent localizes one). Runs execute

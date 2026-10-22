@@ -4,13 +4,13 @@
 **Roadmap authority:** [docs/PLAN.md](docs/PLAN.md) (9 phases). Ignore old phase numbers.
 
 **Current position:** All 9 phases built. Live: **https://devpilot-pied.vercel.app** (Vercel, `apps/web`) →
-API **https://devpilot-api-gr7a.onrender.com** (Render free, DEMO_MODE) → Neon Postgres (both verified up 2026-10-22).
-**Only open item: the Phase 7 headline number.** The v2 SWE-bench loop died ~2026-10-02 after 1/20 instances
-(machine rebooted 2026-10-18). Restart is **blocked on disk space**: 1.8 GB free, scoring needs ≥6 GB (aim for ~8).
-The owner must free space (see docs/PROGRESS.md "Immediate next steps"); then restart → re-export/re-import showcase →
-refresh README numbers + benchmarks screenshot.
-2026-10-22 session: live run streaming over SSE (closes the Phase 3 SSE item) + an eval disk guard; backend **209**
-tests, web **29** tests, lint/tsc/build green.
+API **https://devpilot-api-gr7a.onrender.com** (Render free, DEMO_MODE) → Neon Postgres.
+**The Phase 7 headline run is in progress, unattended:** systemd user service `devpilot-benchmark` (started
+2026-10-22 06:16 IST) generates the v2 patches locally (Groq 200k tokens/day → ≈3 days), then scores them in
+**GitHub Actions**, then publishes report + README numbers + showcase data + screenshot by itself. Nothing for a
+human to do except confirm the Neon password reset (see Phase 9). When it's done, record the headline result here.
+2026-10-22 sessions: SSE run streaming; eval disk guard (size-aware); CI scoring + unattended pipeline; showcase
+autoload; safe disk cleanup (+1.99 GB). Backend **241** tests, web **29**; lint/tsc/build/CI green.
 
 > Update this at the end of every session. Fuller tracking: [docs/PROGRESS.md](docs/PROGRESS.md).
 
@@ -56,17 +56,35 @@ tests, web **29** tests, lint/tsc/build green.
 - LLM client retries 429 per Retry-After (cap 30s × 6). Groq free tier = 8k TPM — evals must be paced.
 - Migration head `cb5554ccaecd`. Tests 137. Eval: `python -m scripts.rag_eval --owner smoke-phase4@example.com` → `docs/eval/phase6-rag.md` (root-cause localization RAG 5/5 vs no-RAG 2/5; both resolve 5/5).
 
-## 🟡 Phase 7 — SWE-bench Lite (harness done; results pending)
+## 🟡 Phase 7 — SWE-bench Lite (harness done; v2 running unattended)
 - Harness: `app/evals/swebench.py`, CLI `python -m scripts.swebench_eval {generate,score,report}` (see `docs/eval/README.md`). Scoring uses the **official** `swebench` harness installed in `apps/api/.venv-swebench` (gitignored; `pip install swebench`). Results in `eval_runs`/`eval_results`, API `/api/v1/evals`, web `/evals`.
 - Configs: `rag` (headline, issue only), `oracle-file`, `oracle-file+rag`, optional `gold` calibration. Agent never sees tests (no test command).
 - Agent changes for real repos: excerpts + SEARCH/REPLACE edits for files > 12k chars (diff-hunk fallback; fuzzy only ≥3 lines & unique), prompt budgets, optional test command, lazy embeddings for repos > 3k chunks, IDF keyword filter, source-first candidates, daily-quota 429 stops immediately.
 - Constraints: Groq free tier = 8k TPM / 1k RPD (only gpt-oss-120b/20b + qwen available); CPU embeddings ~12 chunks/s; disk ~9 GB free → scorer deletes each instance image (~3.8 GB). `requests` tests hit live network → harness may flag `network_unreachable` infra failures.
 - **Groq daily cap: 200k tokens/day (rolling) for gpt-oss-120b** — ≈7 instances × 3 configs per day.
 - Runs (2026-10-01): `lite-s20-seed7-v1-nogate` = first 6 instances with the pre-syntax-gate agent (kept as an ablation). `lite-s20-seed7` = **v2 headline** (syntax gate on). An unattended loop runs `score v1 → report v1 → run-all v2 --with-gold` (log: `~/.cache/devpilot/swebench/run-all.log`); it sleeps 30 min between quota windows and rewrites `docs/eval/phase7-*.md` after every pass. If the machine restarts, re-run (from `apps/api`, `.venv` active, with ≥6 GB free — ideally ~8): `nohup python -m scripts.swebench_eval run-all --name lite-s20-seed7 --n 20 --seed 7 --owner smoke-phase4@example.com --with-gold >> ~/.cache/devpilot/swebench/run-all.log 2>&1 &` (the CLI prints to stdout; the log is just this redirect).
-- ⚠️ **Status 2026-10-22:** the loop is NOT running. v2 has only `django__django-11620` done (rag ❌, oracle-file ❌, gold ✅). Disk is 99% full (1.8 GB free) so a restart would be refused.
-- **Disk guard (2026-10-22):** `app/evals/swebench.py` checks free space on the tighter of the eval cache and Docker's data root (`docker info` → `/var/lib/docker`) before each instance: generation needs `MIN_FREE_GB_GENERATE`=2 GB, scoring `MIN_FREE_GB_SCORE`=6 GB. Below that it raises `LowDisk`; the CLI prints why and returns; `run-all` sleeps and retries, and now finishes only when generation **and** scoring are both complete (before, a partial scoring pass could end the loop with unscored results).
+- **Status 2026-10-22:** the v2 run resumed as the `devpilot-benchmark` systemd user service (see "SWE-bench
+  pipeline" below). At launch: django-11620 complete (rag ❌, oracle-file ❌, gold ✅ — re-scored in CI, identical),
+  django-11848 generated (all 3 configs validated, RAG localized `django/utils/http.py`).
+- **Disk guard (2026-10-22):** `app/evals/swebench.py` checks free space on the tighter of the eval cache and Docker's data root (`docker info` → `/var/lib/docker`) before each instance: generation needs `MIN_FREE_GB_GENERATE`=2 GB; local scoring needs `max(6, 4 × compressed + 1)` GB with the compressed size from Docker Hub (12 GB if unknown) — this machine's Docker uses the **containerd image store**, which keeps compressed + unpacked layers. Measured compressed sizes: django ≈1.15 GB, sympy/sphinx/pylint ≈1.1, scikit-learn 1.5, **matplotlib 3.07**. Below the threshold it raises `LowDisk`; `run-all`/`pipeline` sleep and retry and finish only when generation **and** scoring are complete.
+- **SWE-bench pipeline (2026-10-22):** `python -m scripts.swebench_eval pipeline` (`scripts/eval_pipeline.py`) =
+  generate → `ci-score` (export `docs/eval/predictions/<name>.jsonl` → push → dispatch `swebench-score.yml` → wait →
+  download `swebench-scores` → import; a CI harness error never overwrites a real verdict) → `publish_final`
+  (report + README section between `<!-- swebench:start/end -->` + `apps/api/showcase/showcase.json`, one commit) →
+  marker `~/.cache/devpilot/swebench/pipeline-lite-s20-seed7.done` → disables the unit → waits for the live API to
+  serve the final results, re-captures `docs/images/benchmarks.png` (`apps/web/scripts/capture-benchmarks.mjs`,
+  playwright-core + system Chrome; best effort). Commits come from the clone `~/.cache/devpilot/swebench/publish-repo`
+  (never the owner's checkout) and end in `[automated]`; after them, `git pull --ff-only` in the checkout is clean.
+- **Service:** `~/.config/systemd/user/devpilot-benchmark.service` (from `infra/systemd/install.sh` + `.service.in`),
+  args `--name lite-s20-seed7 --n 20 --seed 7 --owner smoke-phase4@example.com --with-gold --ablation
+  lite-s20-seed7-v1-nogate --site https://devpilot-pied.vercel.app --api https://devpilot-api-gr7a.onrender.com`.
+  Log `~/.cache/devpilot/swebench/pipeline.log`. Status `systemctl --user status devpilot-benchmark`; stop
+  `systemctl --user disable --now devpilot-benchmark`. Verified that `gh` (keyring), git credentials and Docker all
+  work inside systemd. Restarting is safe (finished results are in the DB; only an in-flight run is redone).
+- **CI scoring validated 2026-10-22:** run https://github.com/krish1809/devpilot/actions/runs/39701119345 (4 min) — gold ✅
+  (F2P 1/1, P2P 66/66), rag ❌, oracle-file ❌: identical to local. Those 3 rows now carry `scored_by: GitHub Actions …`.
 - Scoring lessons: harness `patch_successfully_applied=false` can mean the patched file didn't import (we saw IndentationError) → hence the syntax gate; "Image not found" was a transient Docker Hub failure → scorer now retries harness errors (3×) instead of scoring them.
-- ⚠️ Stop the loop by **exact PID**: `ps -eo pid,args | grep scripts.swebench_eval` then `kill <pid>` (also kill any `swebench.harness.run_evaluation` child and `docker rm -f` leftover `sweb.eval.*` containers). `pkill -f` patterns have twice matched the agent tool's own shell wrapper (`bash -c source …`) and killed it.
+- ⚠️ Stop the pipeline with systemd (above). For a manually started loop, stop it by **exact PID**: `ps -eo pid,args | grep scripts.swebench_eval` then `kill <pid>`. `pkill -f`/`pgrep -f` patterns match the agent tool's own shell wrapper (`bash -c …`) — they have killed it twice and miscounted processes once; use `systemctl --user show -p MainPID --value devpilot-benchmark`.
 
 ## ✅ Live run streaming (SSE) — added 2026-10-22
 - `GET /api/v1/runs/{id}/stream` → `app/api/agent.py::stream_run` + `app/services/run_stream.py::run_events`.
@@ -90,10 +108,11 @@ tests, web **29** tests, lint/tsc/build green.
 - Tests: 183 backend, 17 web. Migration head `b04f052d3d3e`.
 
 ## ✅ Phase 9 — Deploy + polish (live)
-- ⚠️ The Neon connection string (with password) was pasted in chat on 2026-10-02; the user said they'd reset the `neondb_owner` password and update Render's `DATABASE_URL`. Never write that string into files/commits. Re-imports: `read -rs DATABASE_URL && export DATABASE_URL` then `python -m scripts.showcase import ../../deploy/showcase.json`.
+- ⚠️ The Neon connection string (with password) was pasted in chat on 2026-10-02; the user said they'd reset the `neondb_owner` password and update Render's `DATABASE_URL`. **Not yet confirmed** (needs their Neon + Render dashboards). Never write that string into files/commits.
+- **Showcase autoload (2026-10-22):** export lives at `apps/api/showcase/showcase.json` (moved from `deploy/`) and ships in the image; the Dockerfile runs `alembic upgrade head && (python -m scripts.showcase autoload || true) && exec uvicorn …`. Autoload imports only in DEMO_MODE and only when the file's SHA-256 differs from `app_state.showcase_sha256` (migration head `cd35ce4e3392`). Refreshing prod = commit a new export (Render redeploys on `apps/api/**`). First autoload ran on deploy 2026-10-22 → demo task ids changed 1–3 → **4–6**. ⚠️ Never run autoload/import with DEMO_MODE against the dev DB: it replaces eval runs with the same names (the real benchmark rows).
 - Render env: DEMO_MODE=true, SECRET_KEY (generated), DATABASE_URL (Neon, pooler), CORS_ORIGINS=https://devpilot-pied.vercel.app. Vercel env: NEXT_PUBLIC_API_URL=https://devpilot-api-gr7a.onrender.com. Both auto-deploy from `main`.
 - Showcase mode `DEMO_MODE=true` (`app/core/demo.py`): middleware refuses all writes except login + `/auth/demo`, blocks `/api/v1/github/*`; `POST /auth/demo` → read-only demo user; `GET /api/v1/config` → `{demo_mode}`. Web adapts (demo button on login, banner, hides run/approve/import controls).
-- `scripts/showcase.py export|import` → `deploy/showcase.json` (tasks 3, 4, 51 + both SWE-bench runs; scrubbed paths/org ids; idempotent import under demo user). **Re-export after the v2 benchmark finishes**, commit, re-import into Neon.
+- `scripts/showcase.py export|import|autoload` → `apps/api/showcase/showcase.json` (tasks 3, 4, 51 + both SWE-bench runs; scrubbed paths/org ids; idempotent import under demo user). The pipeline re-exports it automatically when v2 finishes.
 - Deploy: `render.yaml` (API, Docker, free), Dockerfile runs `alembic upgrade head` then uvicorn on `$PORT`; DB URLs `postgres://`/`postgresql://` auto-normalized; Vercel root `apps/web` with `NEXT_PUBLIC_API_URL`; Neon for Postgres+pgvector. Guide: `docs/DEPLOY.md`.
 - Rehearsed 2026-10-02: built image (702 MB), ran in demo mode on an empty DB → migrations OK, 118 MB RAM, import OK (twice), visitor flow + 403 on writes + CORS OK.
 - Showcase run: devpilot-demo issue #4 (weather °C bug in units.py, not named in the issue) → localized via RAG → PR #5 (run 51, through MCP stdio, traced).
@@ -123,7 +142,8 @@ approve → open real PR.
 - **Sandbox network:** npm registry + github.com + PyPI reachable (npm install & git push work); Docker Hub + fonts.googleapis.com NOT (Docker image builds & web-font fetch fail here). Raw DB row deletes are approval-gated.
 - Do not repeat the earlier Alembic reset — verify DB state before destructive migration ops.
 - `.env` git-ignored; no real secrets committed. Set a strong `SECRET_KEY` for any real deploy.
-- GitHub push for PRs now uses the API's token via env (Phase 4). An older PAT was exposed in chat once and stored via `credential.helper store` — user should revoke it and clear `~/.git-credentials`.
+- GitHub push for PRs now uses the API's token via env (Phase 4). The PAT exposed in chat (2026-09-28) is **dead**: verified 2026-10-22 with the exact token (length-checked) → HTTP 401; `~/.git-credentials` doesn't exist; git uses the `gh` credential helper.
+- Disk (2026-10-22): freed 1.99 GB safely (npm cache, pnpm metadata/dlx cache, `pnpm store prune`, `uv cache prune`, Docker build cache, unused `pgvector/pgvector:pg17` image) → ≈3.5 GB free. Left alone on purpose: `~/.cache/huggingface` (other projects' models), browser caches (browsers running), `~/Downloads`, other projects, Docker volumes. The uv cache is mostly hard-linked into project venvs, so clearing it frees little.
 
 ## Verify-before-trust checklist for agents
 Before acting: read `docs/PLAN.md`, run `git status`, `alembic current`, check this file's date. If a referenced file/flag isn't present, re-inspect — docs may lag.
