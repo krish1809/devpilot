@@ -58,7 +58,7 @@
     },
     {
       "config": "oracle-file",
-      "generated": 9,
+      "generated": 10,
       "scored": 1,
       "resolved": 0,
       "resolve_rate": 0.0,
@@ -67,11 +67,11 @@
         0.7934567085261071
       ],
       "infra_failures": [],
-      "with_patch": 8,
-      "localized": 9,
-      "avg_tokens": 6200.0,
-      "avg_llm_calls": 2.4444444444444446,
-      "avg_seconds": 41.68888888888889
+      "with_patch": 9,
+      "localized": 10,
+      "avg_tokens": 6143.5,
+      "avg_llm_calls": 2.4,
+      "avg_seconds": 38.160000000000004
     },
     {
       "config": "oracle-file+rag",
@@ -497,6 +497,20 @@
       "completion_tokens": 2391,
       "seconds": 140.9,
       "error": "No applicable edit after 3 attempt(s): SEARCH block not found in the file (it must be copied exactly): 'return ('"
+    },
+    {
+      "instance_id": "django__django-16379",
+      "config": "oracle-file",
+      "status": "validated",
+      "target_path": "django/core/cache/backends/filebased.py",
+      "gold_path": "django/core/cache/backends/filebased.py",
+      "localized": true,
+      "resolved": null,
+      "llm_calls": 2,
+      "prompt_tokens": 3821,
+      "completion_tokens": 1814,
+      "seconds": 6.4,
+      "error": null
     },
     {
       "instance_id": "django__django-16379",
