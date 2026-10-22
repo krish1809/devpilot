@@ -41,7 +41,7 @@
   "summary": [
     {
       "config": "rag",
-      "generated": 10,
+      "generated": 11,
       "scored": 1,
       "resolved": 0,
       "resolve_rate": 0.0,
@@ -50,11 +50,11 @@
         0.7934567085261071
       ],
       "infra_failures": [],
-      "with_patch": 7,
-      "localized": 6,
-      "avg_tokens": 8164.5,
-      "avg_llm_calls": 2.6,
-      "avg_seconds": 89.76
+      "with_patch": 8,
+      "localized": 7,
+      "avg_tokens": 8134.181818181818,
+      "avg_llm_calls": 2.5454545454545454,
+      "avg_seconds": 82.48181818181818
     },
     {
       "config": "oracle-file",
@@ -538,6 +538,20 @@
       "prompt_tokens": 3991,
       "completion_tokens": 1797,
       "seconds": 7.1,
+      "error": null
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-23299",
+      "config": "rag",
+      "status": "validated",
+      "target_path": "lib/matplotlib/__init__.py",
+      "gold_path": "lib/matplotlib/__init__.py",
+      "localized": true,
+      "resolved": null,
+      "llm_calls": 2,
+      "prompt_tokens": 5363,
+      "completion_tokens": 2468,
+      "seconds": 9.7,
       "error": null
     }
   ]
