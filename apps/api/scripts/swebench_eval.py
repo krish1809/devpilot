@@ -174,7 +174,7 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
         actions=actions,
         session_factory=SessionLocal,
         showcase_tasks=args.showcase_tasks,
-        showcase_evals=args.showcase_evals or [args.name],
+        showcase_evals=args.showcase_evals or [args.name, *filter(None, [args.ablation])],
         ablation=args.ablation,
         marker=sb.CACHE / f"pipeline-{args.name}.done",
         sleep_seconds=args.sleep,

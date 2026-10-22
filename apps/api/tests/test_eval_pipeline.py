@@ -443,3 +443,21 @@ def test_a_failed_screenshot_never_fails_a_completed_run(tmp_path: Path, monkeyp
 
     assert (tmp_path / "done").exists()
     assert any("Screenshot refresh failed (RuntimeError: chrome crashed)" in m for m in logs)
+
+
+def test_pipeline_command_exports_the_ablation_run_to_the_showcase(monkeypatch) -> None:  # noqa: ANN001
+    import sys
+
+    from scripts import swebench_eval as cli
+
+    seen = {}
+    monkeypatch.setattr(cli, "_ci_deps", lambda: (None, None))
+    monkeypatch.setattr(cli.pipe, "run_pipeline", lambda **kw: seen.update(kw))
+    argv = ["swebench_eval", "pipeline", "--name", "main-run", "--owner", "o@example.com",
+            "--ablation", "old-run"]  # fmt: skip
+    monkeypatch.setattr(sys, "argv", argv)
+
+    cli.main()
+
+    assert seen["showcase_evals"] == ["main-run", "old-run"]
+    assert seen["ablation"] == "old-run" and seen["showcase_tasks"] == [3, 4, 51]
