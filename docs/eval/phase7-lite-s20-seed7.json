@@ -75,17 +75,17 @@
     },
     {
       "config": "oracle-file+rag",
-      "generated": 8,
+      "generated": 9,
       "scored": 0,
       "resolved": 0,
       "resolve_rate": null,
       "ci95": null,
       "infra_failures": [],
-      "with_patch": 6,
-      "localized": 8,
-      "avg_tokens": 9681.25,
-      "avg_llm_calls": 2.625,
-      "avg_seconds": 56.875
+      "with_patch": 7,
+      "localized": 9,
+      "avg_tokens": 9438.777777777777,
+      "avg_llm_calls": 2.5555555555555554,
+      "avg_seconds": 51.41111111111111
     },
     {
       "config": "gold",
@@ -468,6 +468,20 @@
       "prompt_tokens": 4350,
       "completion_tokens": 1157,
       "seconds": 45.7,
+      "error": null
+    },
+    {
+      "instance_id": "django__django-14672",
+      "config": "oracle-file+rag",
+      "status": "validated",
+      "target_path": "django/db/models/fields/reverse_related.py",
+      "gold_path": "django/db/models/fields/reverse_related.py",
+      "localized": true,
+      "resolved": null,
+      "llm_calls": 2,
+      "prompt_tokens": 6250,
+      "completion_tokens": 1249,
+      "seconds": 7.7,
       "error": null
     },
     {

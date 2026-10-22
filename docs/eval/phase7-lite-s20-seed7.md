@@ -8,7 +8,7 @@ The agent never sees the benchmark's tests (standard setting): it gets the issue
 |---|---|---|---|---|---|---|---|
 | **RAG, issue only** (realistic) | 0/1 | 0% (0%–79%) | 6/9 | 5/9 | 2.7 | 8,429 | 99s |
 | Oracle file, no retrieval | 0/1 | 0% (0%–79%) | 8/9 | 9/9 | 2.4 | 6,200 | 42s |
-| Oracle file + RAG context | 0/0 | not scored | 6/8 | 8/8 | 2.6 | 9,681 | 57s |
+| Oracle file + RAG context | 0/0 | not scored | 7/9 | 9/9 | 2.6 | 9,439 | 51s |
 | Reference (gold) patch — environment ceiling | 1/1 | 100% (21%–100%) | 1/1 | 1/1 | 0.0 | 0 | 0s |
 
 Scored by: GitHub Actions https://github.com/krish1809/devpilot/actions/runs/39701119345.
@@ -23,7 +23,7 @@ Scored by: GitHub Actions https://github.com/krish1809/devpilot/actions/runs/397
 | django__django-12915 | · validated | · validated | · validated | — |
 | django__django-13028 | · validated | · validated | · validated | — |
 | django__django-13158 | · error | · error | · error | — |
-| django__django-14672 | · error | · validated | — | — |
+| django__django-14672 | · error | · validated | · validated | — |
 | django__django-16379 | — | — | — | — |
 | matplotlib__matplotlib-23299 | — | — | — | — |
 | pylint-dev__pylint-7228 | — | — | — | — |
