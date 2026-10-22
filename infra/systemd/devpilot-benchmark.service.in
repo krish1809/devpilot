@@ -1,0 +1,23 @@
+# DevPilot SWE-bench pipeline as a systemd *user* service (installed by install.sh).
+# Generates patches locally (paced by the LLM's daily quota), scores them in GitHub
+# Actions, and publishes the results. Survives the terminal/session that started it,
+# restarts after a crash, and resumes at login after a reboot. When the run is
+# complete the pipeline disables this unit itself.
+[Unit]
+Description=DevPilot SWE-bench pipeline (generate, score in CI, publish)
+Documentation=file://@REPO@/docs/eval/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=@REPO@/apps/api
+ExecStart=@REPO@/apps/api/.venv/bin/python -m scripts.swebench_eval pipeline @ARGS@
+Restart=on-failure
+RestartSec=900
+Environment=PYTHONUNBUFFERED=1
+StandardOutput=append:%h/.cache/devpilot/swebench/pipeline.log
+StandardError=inherit
+
+[Install]
+WantedBy=default.target

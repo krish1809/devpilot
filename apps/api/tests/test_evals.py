@@ -21,8 +21,9 @@ PATCH = (
 
 @pytest.fixture(autouse=True)
 def _plenty_of_disk(monkeypatch) -> None:  # noqa: ANN001
-    """Keep these tests independent of the real machine's free disk space."""
+    """Keep these tests independent of the machine's free disk and of Docker Hub."""
     monkeypatch.setattr(sb, "free_disk_gb", lambda: 1000.0)
+    monkeypatch.setattr(sb, "estimate_image_gb", lambda instance_id: 1.0)
 
 
 def test_wilson_interval() -> None:
@@ -277,3 +278,75 @@ def test_run_all_finishes_only_when_generation_and_scoring_are_both_done(
 
     assert len(reports) == 2  # a low-disk scoring stop triggered a second pass
     assert passes == {"generated": [], "scored": []}
+
+
+def test_space_needed_scales_with_the_image_size(monkeypatch) -> None:  # noqa: ANN001
+    monkeypatch.setattr(sb, "estimate_image_gb", lambda iid: {"big": 3.0, "small": 1.0}.get(iid))
+    assert sb.score_space_needed_gb("big") == pytest.approx(13.0)  # 4 x 3 GB + 1
+    assert sb.score_space_needed_gb("small") == sb.MIN_FREE_GB_SCORE  # floor
+    assert sb.score_space_needed_gb("unknown") == sb.MIN_FREE_GB_SCORE_UNKNOWN
+
+
+# --------------------------------------------------------------------------- #
+# Scoring in CI: predictions out, verdicts in
+# --------------------------------------------------------------------------- #
+def _results(db_session: Session, name: str, rows: list[tuple]) -> object:
+    run = sb.get_or_create_run(db_session, name, [], ["rag", "oracle-file"], {})
+    for iid, config, patch, resolved in rows:
+        db_session.add(EvalResult(eval_run_id=run.id, instance_id=iid, repo="x/y", config=config,
+                                  status="validated", patch=patch, resolved=resolved))  # fmt: skip
+    db_session.commit()
+    return run
+
+
+def test_export_predictions_lists_every_patch_in_order(db_session: Session) -> None:
+    run = _results(db_session, "exp", [
+        ("b__b-2", "rag", PATCH, None),
+        ("a__a-1", "oracle-file", PATCH, False),  # already scored: still exported
+        ("a__a-1", "rag", None, None),  # no patch: nothing to score
+    ])  # fmt: skip
+
+    preds = sb.export_predictions(db_session, run)
+
+    assert [(p["instance_id"], p["config"]) for p in preds] == [
+        ("a__a-1", "oracle-file"),
+        ("b__b-2", "rag"),
+    ]
+    assert preds[0]["model_name_or_path"] == "devpilot-oracle-file"
+    assert preds[0]["model_patch"] == PATCH
+
+
+def test_mark_patchless_resolves_only_pending_rows_without_a_patch(db_session: Session) -> None:
+    rows = [("a__a-1", "rag", None, None), ("b__b-2", "rag", PATCH, None)]
+    run = _results(db_session, "nop", rows)
+
+    assert sb.mark_patchless(db_session, run) == 1
+    rows = {r.instance_id: r for r in db_session.query(EvalResult).filter_by(eval_run_id=run.id)}
+    assert rows["a__a-1"].resolved is False
+    assert rows["a__a-1"].score_detail == {"reason": "no patch"}
+    assert rows["b__b-2"].resolved is None
+
+
+def test_import_scores_applies_ci_verdicts(db_session: Session) -> None:
+    run = _results(db_session, "imp", [
+        ("a__a-1", "rag", PATCH, None),
+        ("a__a-1", "oracle-file", PATCH, True),  # real local verdict on record
+        ("b__b-2", "rag", PATCH, None),  # CI didn't report it: stays pending
+    ])  # fmt: skip
+    harness_error = {"resolved": False, "score_detail": {"infra_failure": "harness_error"}}
+    merged = {"results": [
+        {"instance_id": "a__a-1", "config": "rag", "resolved": True,
+         "score_detail": {"patch_applied": True, "infra_failure": None}},
+        {"instance_id": "a__a-1", "config": "oracle-file", **harness_error},
+    ]}  # fmt: skip
+
+    counts = sb.import_scores(db_session, run, merged, source="github-actions run 7")
+
+    assert counts == {"applied": 1, "kept": 1, "pending": 1}
+    db_session.expire_all()
+    rows = {(r.instance_id, r.config): r for r in db_session.query(EvalResult).filter_by(
+        eval_run_id=run.id)}  # fmt: skip
+    assert rows[("a__a-1", "rag")].resolved is True
+    assert rows[("a__a-1", "rag")].score_detail["scored_by"] == "github-actions run 7"
+    assert rows[("a__a-1", "oracle-file")].resolved is True  # harness error didn't overwrite it
+    assert rows[("b__b-2", "rag")].resolved is None

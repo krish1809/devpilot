@@ -1,0 +1,96 @@
+name: SWE-bench scoring
+
+# Scores DevPilot's SWE-bench Lite predictions with the official harness.
+# Dispatched by `python -m scripts.swebench_eval ci-score` (or by hand) after
+# the patches are generated locally; see docs/eval/README.md. Runs here because
+# the per-instance Docker images (up to ~9 GB unpacked) don't fit on a laptop.
+
+on:
+  workflow_dispatch:
+    inputs:
+      predictions:
+        description: Predictions JSONL, as a path in this repository
+        required: true
+        default: docs/eval/predictions/lite-s20-seed7.jsonl
+
+permissions:
+  contents: read
+
+concurrency:
+  group: swebench-score
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: List instances
+    runs-on: ubuntu-latest
+    outputs:
+      instances: ${{ steps.list.outputs.instances }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: list
+        env:
+          PREDICTIONS: ${{ inputs.predictions }}
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os
+          with open(os.environ["PREDICTIONS"]) as f:
+              ids = sorted({json.loads(line)["instance_id"] for line in f if line.strip()})
+          print("instances=" + json.dumps(ids))
+          PY
+
+  score:
+    name: Score ${{ matrix.instance }}
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        instance: ${{ fromJSON(needs.plan.outputs.instances) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Free disk space for the instance image
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install the official harness
+        run: python -m pip install "swebench==5.0.2"
+      - name: Score with swebench.harness.run_evaluation
+        env:
+          PREDICTIONS: ${{ inputs.predictions }}
+          INSTANCE: ${{ matrix.instance }}
+        run: |
+          python apps/api/scripts/ci_score.py score \
+            --predictions "$PREDICTIONS" --instance "$INSTANCE" \
+            --out "scores/$INSTANCE.json" --workdir "$RUNNER_TEMP/harness"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: score-${{ matrix.instance }}
+          path: scores/
+          if-no-files-found: warn
+          retention-days: 30
+
+  collect:
+    name: Merge verdicts
+    needs: score
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: score-*
+          merge-multiple: true
+          path: scores
+      - run: python3 apps/api/scripts/ci_score.py merge --dir scores --out swebench-scores.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: swebench-scores
+          path: swebench-scores.json
+          retention-days: 90

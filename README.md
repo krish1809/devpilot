@@ -73,13 +73,15 @@ only retrieval fixed the *actual* bug every time:
 | No retrieval (file list only) | 5/5 | 2/5 | 2,483 |
 | Hybrid RAG | 5/5 | **5/5** | 1,990 |
 
-**SWE-bench Lite** ([method](docs/eval/README.md)) — a seeded random sample of 20 real issues
-from Django, SymPy, scikit-learn, Sphinx, Matplotlib and Pylint, run with a free-tier open-weight
-model (`gpt-oss-120b` on Groq, 200k tokens/day) and scored by the official harness. The full run
-is in progress (it's paced by the daily token quota); reports:
-[current run](docs/eval/phase7-lite-s20-seed7.md) ·
-[earlier agent version, 6 instances](docs/eval/phase7-lite-s20-seed7-v1-nogate.md).
+<!-- swebench:start -->
+**SWE-bench Lite** ([method](docs/eval/README.md)) — a seeded random sample of 20 real issues from Django, Matplotlib, Pylint, scikit-learn, Sphinx and SymPy, run with a free-tier open-weight model (`openai/gpt-oss-120b` on Groq) and scored by the official SWE-bench harness. The agent sees only the issue text; the benchmark's tests stay hidden.
+
+**In progress:** 1/20 instances attempted so far. The run is paced by the free tier's daily token quota, and the numbers are published here once every patch has been scored.
+
+[Current partial report](docs/eval/phase7-lite-s20-seed7.md) · [earlier agent version](docs/eval/phase7-lite-s20-seed7-v1-nogate.md)
+
 Read it as a capability demonstration with wide confidence intervals, not a leaderboard claim.
+<!-- swebench:end -->
 
 What evaluation already changed in the agent: SEARCH/REPLACE editing with excerpts for large files
 (whole-file rewrites don't fit real repositories), lazy embedding (CPU embedding of a 12k-chunk repo

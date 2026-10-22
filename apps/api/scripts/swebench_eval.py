@@ -8,6 +8,10 @@
     # or all of it, unattended across LLM daily-quota windows:
     python -m scripts.swebench_eval run-all --name lite-s20 --n 20 --seed 7 \
         --owner you@example.com --with-gold
+    # without the local disk scoring needs: score in GitHub Actions instead
+    python -m scripts.swebench_eval ci-score --name lite-s20 --with-gold
+    python -m scripts.swebench_eval pipeline --name lite-s20 --n 20 --seed 7 \
+        --owner you@example.com --with-gold   # generate → CI scoring → publish
 
 Both generate and score are resumable: re-running skips finished work, and
 generate stops cleanly when the LLM provider's daily quota runs out.
@@ -23,9 +27,11 @@ from pathlib import Path
 from sqlalchemy import select
 
 from app.db.session import SessionLocal
+from app.evals import report
 from app.evals import swebench as sb
-from app.models.eval import EvalResult, EvalRun
+from app.models.eval import EvalRun
 from app.services.user import get_user_by_email
+from scripts import eval_pipeline as pipe
 
 DOCS = Path(__file__).resolve().parents[3] / "docs" / "eval"
 
@@ -77,16 +83,8 @@ def cmd_score(args: argparse.Namespace) -> bool:
     """Returns True when every generated result has been scored."""
     with SessionLocal() as db:
         run = _run(db, args.name)
-        if args.with_gold:  # only for instances the agent has attempted
-            by_id = {i.instance_id: i for i in sb.load_dataset()}
-            attempted = set(
-                db.scalars(
-                    select(EvalResult.instance_id).where(
-                        EvalResult.eval_run_id == run.id, EvalResult.config != "gold"
-                    )
-                )
-            )
-            sb.add_gold(db, run, [by_id[i] for i in run.instance_ids if i in attempted])
+        if args.with_gold:
+            sb.queue_gold_for_attempted(db, run)
         try:
             sb.score(
                 db,
@@ -103,31 +101,11 @@ def cmd_score(args: argparse.Namespace) -> bool:
 
 def cmd_report(args: argparse.Namespace) -> None:
     with SessionLocal() as db:
-        run = _run(db, args.name)
-        results = list(db.scalars(select(EvalResult).where(EvalResult.eval_run_id == run.id)).all())
-        configs = run.configs + (["gold"] if any(r.config == "gold" for r in results) else [])
-        summary = sb.summarize(results, configs)
-    DOCS.mkdir(parents=True, exist_ok=True)
-    data = {
-        "name": run.name,
-        "dataset": run.dataset,
-        "model": run.model,
-        "settings": run.settings,
-        "instances": run.instance_ids,
-        "summary": summary,
-        "results": [
-            {k: getattr(r, k) for k in ("instance_id", "config", "status", "target_path",
-             "gold_path", "localized", "resolved", "llm_calls", "prompt_tokens",
-             "completion_tokens", "seconds", "error")}
-            for r in sorted(results, key=lambda r: (r.instance_id, r.config))
-        ],
-    }  # fmt: skip
-    for row in data["results"]:
-        row["error"] = sb.scrub(row["error"])
-    stem = DOCS / f"phase7-{run.name}"
-    stem.with_suffix(".json").write_text(json.dumps(data, indent=2, default=str))
-    stem.with_suffix(".md").write_text(render_markdown(run, summary, results, configs))
-    print(stem.with_suffix(".md").read_text())
+        try:
+            md_path, _ = report.write_report(db, args.name, DOCS)
+        except LookupError as exc:
+            raise SystemExit(str(exc)) from exc
+    print(md_path.read_text())
 
 
 def cmd_run_all(args: argparse.Namespace) -> None:
@@ -152,68 +130,56 @@ def cmd_run_all(args: argparse.Namespace) -> None:
         time.sleep(args.sleep)
 
 
-def render_markdown(
-    run: EvalRun, summary: list[dict], results: list[EvalResult], configs: list[str]
-) -> str:
-    s = run.settings
-    attempted = len({r.instance_id for r in results if r.config != "gold"})
-    lines = [
-        f"# SWE-bench Lite — DevPilot ({run.name})",
-        "",
-        f"Seeded random sample of **{len(run.instance_ids)}** of the 300 SWE-bench Lite "
-        f"test instances (seed {s.get('seed')}); **{attempted} attempted so far**. "
-        f"LLM `{run.model}` (Groq free tier), "
-        f"embeddings `{s.get('embedding_model')}`. Patches scored with the **official "
-        "SWE-bench harness** (`swebench.harness.run_evaluation`): an instance is resolved "
-        "only if all FAIL_TO_PASS and PASS_TO_PASS tests pass.",
-        "",
-        "The agent never sees the benchmark's tests (standard setting): it gets the issue "
-        "text, retrieves/plans/edits one file, and the automated reviewer gates the diff.",
-        "",
-        "| Config | Resolved | Resolve rate (95% CI) | Patch produced | Edited gold file "
-        "| Avg LLM calls | Avg tokens | Avg time |",
-        "|---|---|---|---|---|---|---|---|",
-    ]
-    labels = {
-        "rag": "**RAG, issue only** (realistic)",
-        "oracle-file": "Oracle file, no retrieval",
-        "oracle-file+rag": "Oracle file + RAG context",
-        "gold": "Reference (gold) patch — environment ceiling",
-    }
-    for row in summary:
-        rate = (
-            f"{row['resolve_rate']:.0%} ({row['ci95'][0]:.0%}–{row['ci95'][1]:.0%})"
-            if row["resolve_rate"] is not None
-            else "not scored"
-        )
-        lines.append(
-            f"| {labels.get(row['config'], row['config'])} | {row['resolved']}/{row['scored']} "
-            f"| {rate} | {row['with_patch']}/{row['generated']} | "
-            f"{row['localized']}/{row['generated']} | {row['avg_llm_calls']:.1f} | "
-            f"{row['avg_tokens']:,.0f} | {row['avg_seconds']:.0f}s |"
-        )
-    infra = {c["config"]: c["infra_failures"] for c in summary if c["infra_failures"]}
-    if infra:
-        lines += ["", "Infra failures (harness-classified, counted as unresolved above): "
-                  + "; ".join(f"{c}: {', '.join(v)}" for c, v in infra.items())]  # fmt: skip
-    lines += ["", "| Instance | " + " | ".join(configs) + " |",
-              "|---|" + "---|" * len(configs)]  # fmt: skip
-    cell = {True: "✅", False: "❌", None: "·"}
-    by = {(r.instance_id, r.config): r for r in results}
-    for iid in run.instance_ids:
-        cells = []
-        for c in configs:
-            r = by.get((iid, c))
-            cells.append("—" if r is None else f"{cell[r.resolved]} {r.status}")
-        lines.append(f"| {iid} | " + " | ".join(cells) + " |")
-    lines += [
-        "",
-        "Legend: ✅ resolved · ❌ not resolved · · not scored yet · — not run. "
-        "Status is the agent's final state (`validated` = a patch passed review; "
-        "`review_failed`/`error` = no patch submitted).",
-        "",
-    ]
-    return "\n".join(lines)
+def cmd_export_predictions(args: argparse.Namespace) -> None:
+    with SessionLocal() as db:
+        preds = sb.export_predictions(db, _run(db, args.name))
+    out = Path(args.out) if args.out else DOCS.parents[1] / pipe.predictions_path(args.name)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text("".join(json.dumps(p, sort_keys=True) + "\n" for p in preds))
+    print(f"Wrote {len(preds)} predictions to {out}")
+
+
+def cmd_import_scores(args: argparse.Namespace) -> None:
+    scores = json.loads(Path(args.file).read_text())
+    with SessionLocal() as db:
+        counts = sb.import_scores(db, _run(db, args.name), scores, source=args.source)
+    print(f"Imported: {counts}")
+
+
+def _ci_deps() -> tuple[pipe.Publisher, pipe.Actions]:
+    publisher = pipe.default_publisher(sb.CACHE)
+    return publisher, pipe.Actions(pipe.github_repo(publisher.remote))
+
+
+def cmd_ci_score(args: argparse.Namespace) -> None:
+    publisher, actions = _ci_deps()
+    pending = pipe.ci_score(
+        args.name,
+        with_gold=args.with_gold,
+        publisher=publisher,
+        actions=actions,
+        session_factory=SessionLocal,
+        force=args.force,
+    )
+    print(f"{pending} results still unscored.")
+
+
+def cmd_pipeline(args: argparse.Namespace) -> None:
+    publisher, actions = _ci_deps()
+    pipe.run_pipeline(
+        name=args.name,
+        generate=lambda: cmd_generate(args),
+        with_gold=args.with_gold,
+        publisher=publisher,
+        actions=actions,
+        session_factory=SessionLocal,
+        showcase_tasks=args.showcase_tasks,
+        showcase_evals=args.showcase_evals or [args.name],
+        ablation=args.ablation,
+        marker=sb.CACHE / f"pipeline-{args.name}.done",
+        sleep_seconds=args.sleep,
+        ci_attempts=args.ci_attempts,
+    )
 
 
 def main() -> None:
@@ -250,6 +216,34 @@ def main() -> None:
     r = sub.add_parser("report")
     r.add_argument("--name", required=True)
     r.set_defaults(fn=cmd_report)
+    e = sub.add_parser("export-predictions", help="write the run's patches as harness input")
+    e.add_argument("--name", required=True)
+    e.add_argument("--out", help="default: docs/eval/predictions/<name>.jsonl")
+    e.set_defaults(fn=cmd_export_predictions)
+    i = sub.add_parser("import-scores", help="apply a CI verdicts file (swebench-scores.json)")
+    i.add_argument("--name", required=True)
+    i.add_argument("--file", required=True)
+    i.add_argument("--source", default="GitHub Actions")
+    i.set_defaults(fn=cmd_import_scores)
+    c = sub.add_parser("ci-score", help="score in GitHub Actions and import the verdicts")
+    c.add_argument("--name", required=True)
+    c.add_argument("--with-gold", action="store_true")
+    c.add_argument("--force", action="store_true", help="re-score even if nothing is pending")
+    c.set_defaults(fn=cmd_ci_score)
+    pl = sub.add_parser("pipeline", help="generate → score in CI → publish, unattended")
+    for flag, kw in (
+        ("--name", {"required": True}), ("--owner", {"required": True}),
+        ("--n", {"type": int, "default": 20}), ("--seed", {"type": int, "default": 7}),
+        ("--instances", {"nargs": "*"}), ("--sleep", {"type": int, "default": 1800}),
+        ("--ci-attempts", {"type": int, "default": 5}),
+        ("--showcase-tasks", {"nargs": "*", "type": int, "default": [3, 4, 51]}),
+        ("--showcase-evals", {"nargs": "*"}), ("--ablation", {"default": None}),
+    ):  # fmt: skip
+        pl.add_argument(flag, **kw)
+    pl.add_argument("--configs", nargs="+", default=list(sb.CONFIGS), choices=list(sb.CONFIGS))
+    pl.add_argument("--keep-index", action="store_true")
+    pl.add_argument("--with-gold", action="store_true")
+    pl.set_defaults(fn=cmd_pipeline)
     args = parser.parse_args()
     args.fn(args)
 

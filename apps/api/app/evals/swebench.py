@@ -29,7 +29,6 @@ from __future__ import annotations
 
 import json
 import random
-import re
 import shutil
 import subprocess
 import time
@@ -40,19 +39,20 @@ from pathlib import Path
 
 import httpx
 from langgraph.checkpoint.memory import InMemorySaver
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.agents import runner
 from app.agents.graph import AgentDeps
 from app.core.config import Settings, get_settings
+from app.evals import harness_io
+from app.evals.harness_io import DATASET, scrub
 from app.integrations import git_ops
 from app.integrations.github_pr import PublishError
 from app.models.eval import EvalResult, EvalRun
 from app.models.rag import RepoIndex
 from app.services import agent as agent_service
 
-DATASET = "SWE-bench/SWE-bench_Lite"
 _ROWS_API = "https://datasets-server.huggingface.co/rows"
 _HF_DATASET = "princeton-nlp/SWE-bench_Lite"
 CACHE = Path.home() / ".cache" / "devpilot" / "swebench"
@@ -79,12 +79,16 @@ EVAL_SETTINGS = {
 }
 
 
-# Disk guards. Scoring builds one instance image at a time (~3.8 GB, removed
-# afterwards); generation needs room for a shallow clone plus its RAG index in
-# Postgres. Below these thresholds the harness stops cleanly — and resumes on
-# the next run — instead of filling the disk, which would also take down the
-# Postgres instance it writes to.
-MIN_FREE_GB_SCORE = 6.0
+# Disk guards. Generation needs room for a shallow clone plus its RAG index in
+# Postgres. Scoring pulls one prebuilt instance image at a time (removed
+# afterwards); those range from ~1 GB (compressed) for Django to ~3 GB for
+# Matplotlib, unpack to roughly 3x that, and Docker's containerd image store
+# keeps the compressed layers too — so the space needed is estimated per image.
+# Below the threshold the harness stops cleanly — and resumes on the next run —
+# instead of filling the disk, which would also take down the Postgres instance
+# it writes to. (Scoring in CI avoids all of this; see `ci-score`.)
+MIN_FREE_GB_SCORE = 6.0  # floor for any instance
+MIN_FREE_GB_SCORE_UNKNOWN = 12.0  # when the image size can't be looked up
 MIN_FREE_GB_GENERATE = 2.0
 
 
@@ -120,6 +124,26 @@ def free_disk_gb() -> float:
     return min(free) if free else float("inf")
 
 
+def estimate_image_gb(instance_id: str) -> float | None:
+    """Compressed size (GB) of the instance's prebuilt image on Docker Hub, if known."""
+    repo = "sweb.eval.x86_64." + instance_id.replace("__", "_1776_")
+    url = f"https://hub.docker.com/v2/namespaces/swebench/repositories/{repo}/tags/latest"
+    try:
+        resp = httpx.get(url, timeout=15)
+        resp.raise_for_status()
+        return float(resp.json()["full_size"]) / 1e9
+    except (httpx.HTTPError, KeyError, TypeError, ValueError):
+        return None
+
+
+def score_space_needed_gb(instance_id: str) -> float:
+    """Free space to require before scoring: unpacked (~3x) + compressed (1x) + 1 GB."""
+    compressed = estimate_image_gb(instance_id)
+    if compressed is None:
+        return MIN_FREE_GB_SCORE_UNKNOWN
+    return max(MIN_FREE_GB_SCORE, 4 * compressed + 1)
+
+
 def require_free_disk(min_gb: float, step: str) -> None:
     free = free_disk_gb()
     if free < min_gb:
@@ -127,14 +151,6 @@ def require_free_disk(min_gb: float, step: str) -> None:
             f"only {free:.1f} GB free; {step} needs at least {min_gb:.0f} GB. "
             "Free some disk space and re-run — finished work is kept."
         )
-
-
-_ORG_ID = re.compile(r"org_[A-Za-z0-9]+")
-
-
-def scrub(text: str | None) -> str | None:
-    """Remove account identifiers (e.g. a provider org id in a 429 message)."""
-    return _ORG_ID.sub("org_[redacted]", text) if text else text
 
 
 _MAX_HARNESS_ERRORS = 3
@@ -335,6 +351,21 @@ def add_gold(db: Session, eval_run: EvalRun, instances: list[Instance]) -> None:
     db.commit()
 
 
+def queue_gold_for_attempted(db: Session, eval_run: EvalRun) -> None:
+    """Queue reference patches, but only for instances the agent has attempted."""
+    attempted = set(
+        db.scalars(
+            select(EvalResult.instance_id).where(
+                EvalResult.eval_run_id == eval_run.id, EvalResult.config != "gold"
+            )
+        )
+    )
+    if not attempted:
+        return
+    by_id = {i.instance_id: i for i in load_dataset()}
+    add_gold(db, eval_run, [by_id[i] for i in eval_run.instance_ids if i in attempted])
+
+
 def _harness_run_id(eval_run: EvalRun, config: str) -> str:
     return f"devpilot-{eval_run.id}-{config.replace('+', '-')}"
 
@@ -366,7 +397,7 @@ def score(
 
     for instance_id, results in by_instance.items():
         if any(r.patch for r in results):  # only patches build an instance image
-            require_free_disk(MIN_FREE_GB_SCORE, f"scoring {instance_id}")
+            require_free_disk(score_space_needed_gb(instance_id), f"scoring {instance_id}")
         for r in results:
             if not r.patch:  # nothing to apply: unresolved by definition
                 r.resolved, r.score_detail = False, {"reason": "no patch"}
@@ -388,33 +419,18 @@ def _score_one(
 ) -> bool:
     """Run the official harness on one result. True once it has a verdict."""
     instance_id = r.instance_id
-    model = f"devpilot-{r.config}"
+    model = harness_io.model_name(r.config)
     run_id = _harness_run_id(eval_run, r.config)
     preds = workdir / f"{run_id}.{instance_id}.jsonl"
-    preds.write_text(json.dumps(
-        {"instance_id": instance_id, "model_name_or_path": model, "model_patch": r.patch}
-    ) + "\n")  # fmt: skip
+    harness_io.write_prediction(preds, instance_id, r.config, r.patch)
     proc = subprocess.run(
-        [str(SWEBENCH_PY), "-m", "swebench.harness.run_evaluation",
-         "-d", DATASET, "-s", "test", "-i", instance_id, "-p", str(preds),
-         "--max_workers", "1", "-t", str(timeout), "-id", run_id,
-         "--report_dir", str(workdir)],
+        harness_io.harness_command(str(SWEBENCH_PY), instance_id, preds, run_id, workdir, timeout),
         cwd=workdir, capture_output=True, text=True, timeout=timeout + 1200,
     )  # fmt: skip
-    report = workdir / "logs" / "run_evaluation" / run_id / model / instance_id
-    report = report / "report.json"
-    run_report = workdir / f"{model}.{run_id}.json"
-    reasons = {}
-    if run_report.exists():
-        reasons = json.loads(run_report.read_text()).get("failure_reasons") or {}
-    if report.exists():
-        detail = json.loads(report.read_text()).get(instance_id, {})
-        r.resolved = bool(detail.get("resolved"))
-        r.score_detail = {
-            "patch_applied": detail.get("patch_successfully_applied"),
-            "tests_status": _summarize_tests(detail.get("tests_status") or {}),
-            "infra_failure": reasons.get(instance_id),
-        }
+    verdict = harness_io.read_verdict(workdir, run_id, model, instance_id)
+    if verdict is not None:
+        r.resolved = verdict["resolved"]
+        r.score_detail = verdict["score_detail"]
     else:
         # The harness itself failed (e.g. Docker Hub couldn't serve the image):
         # not a verdict on the patch. The caller retries; only after repeated
@@ -435,12 +451,6 @@ def _score_one(
     return True
 
 
-def _summarize_tests(status: dict) -> dict:
-    return {
-        group: {k: len(v) for k, v in (outcome or {}).items()} for group, outcome in status.items()
-    }
-
-
 def _remove_instance_images(instance_id: str) -> None:
     name = instance_id.replace("__", "_1776_").lower()
     out = subprocess.run(
@@ -456,6 +466,79 @@ def _remove_instance_images(instance_id: str) -> None:
 # --------------------------------------------------------------------------- #
 # Summaries
 # --------------------------------------------------------------------------- #
+# --------------------------------------------------------------------------- #
+# Scoring in CI: predictions out, verdicts in
+# --------------------------------------------------------------------------- #
+def export_predictions(db: Session, eval_run: EvalRun) -> list[dict]:
+    """Every patch of the run, as harness predictions (one line per instance x config)."""
+    rows = db.scalars(
+        select(EvalResult)
+        .where(EvalResult.eval_run_id == eval_run.id)
+        .order_by(EvalResult.instance_id, EvalResult.config)
+    ).all()
+    return [
+        {
+            "instance_id": r.instance_id,
+            "config": r.config,
+            "model_name_or_path": harness_io.model_name(r.config),
+            "model_patch": r.patch,
+        }
+        for r in rows
+        if r.patch
+    ]
+
+
+def mark_patchless(db: Session, eval_run: EvalRun) -> int:
+    """Results without a patch are unresolved by definition — no harness needed."""
+    pending = db.scalars(
+        select(EvalResult).where(
+            EvalResult.eval_run_id == eval_run.id, EvalResult.resolved.is_(None)
+        )
+    ).all()
+    marked = 0
+    for r in pending:
+        if not r.patch:
+            r.resolved, r.score_detail = False, {"reason": "no patch"}
+            r.scored_at = datetime.now(UTC)
+            marked += 1
+    db.commit()
+    return marked
+
+
+def import_scores(db: Session, eval_run: EvalRun, merged: dict, *, source: str) -> dict:
+    """Apply verdicts from the CI scoring job (``scripts/ci_score.py merge`` output).
+
+    A CI harness error never replaces a real verdict already on record. Results
+    the job didn't report on stay pending, so the next attempt picks them up.
+    """
+    verdicts = {(v["instance_id"], v["config"]): v for v in merged.get("results", [])}
+    applied = kept = 0
+    rows = db.scalars(select(EvalResult).where(EvalResult.eval_run_id == eval_run.id)).all()
+    for r in rows:
+        verdict = verdicts.get((r.instance_id, r.config))
+        if verdict is None or not r.patch:
+            continue
+        detail = dict(verdict.get("score_detail") or {})
+        harness_error = detail.get("infra_failure") == "harness_error"
+        real_verdict_on_record = r.resolved is not None and not (r.score_detail or {}).get(
+            "infra_failure"
+        )
+        if harness_error and real_verdict_on_record:
+            kept += 1
+            continue
+        r.resolved = bool(verdict["resolved"])
+        r.score_detail = {**detail, "scored_by": source}
+        r.scored_at = datetime.now(UTC)
+        applied += 1
+    db.commit()
+    pending = db.scalar(
+        select(func.count())
+        .select_from(EvalResult)
+        .where(EvalResult.eval_run_id == eval_run.id, EvalResult.resolved.is_(None))
+    )
+    return {"applied": applied, "kept": kept, "pending": pending}
+
+
 def wilson_interval(successes: int, n: int, z: float = 1.96) -> tuple[float, float]:
     if n == 0:
         return 0.0, 0.0

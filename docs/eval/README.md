@@ -61,6 +61,45 @@ python -m scripts.swebench_eval report --name lite-s20-seed7
 Results are also stored in Postgres (`eval_runs`, `eval_results`) and shown in the web app
 under **Benchmarks** (`/evals`), including every patch.
 
+### Scoring in GitHub Actions, and the unattended pipeline
+
+Scoring needs room for each instance's Docker image — ~1–3 GB compressed on Docker Hub, roughly
+3× that unpacked, up to ~9 GB for Matplotlib — more than a busy laptop can spare. So scoring can
+run in CI instead, with the same harness version and the same command line
+([`app/evals/harness_io.py`](../../apps/api/app/evals/harness_io.py) is shared by both sides):
+
+```bash
+# export every patch, push docs/eval/predictions/<name>.jsonl, dispatch the scoring workflow,
+# wait for it, and import the verdicts
+python -m scripts.swebench_eval ci-score --name lite-s20-seed7 --with-gold
+```
+
+[`.github/workflows/swebench-score.yml`](../../.github/workflows/swebench-score.yml) gives each
+instance its own job (frees ~25 GB on the runner, installs `swebench==5.0.2`, runs
+[`scripts/ci_score.py`](../../apps/api/scripts/ci_score.py), retrying harness errors) and merges
+the verdicts into a `swebench-scores` artifact. Every reported verdict then comes from the same CI
+environment; a CI harness error never overwrites a real verdict already on record. The
+predictions file is committed, so anyone can see — and re-score — the exact patches behind the
+numbers.
+
+`pipeline` runs the whole thing unattended: generate (paced by the LLM's daily quota and the disk
+guard, publishing the partial report and the README's progress line after each productive pass)
+→ score in CI → publish the final report, the README numbers and the showcase data, which the
+deployed API loads on its next start ([DEPLOY.md](../DEPLOY.md)). It publishes from a dedicated
+clone (`~/.cache/devpilot/swebench/publish-repo`), never from the developer's checkout, and it
+installs as a systemd user service so it survives the terminal that started it and resumes at
+login after a reboot:
+
+```bash
+infra/systemd/install.sh --name lite-s20-seed7 --n 20 --seed 7 --owner you@example.com \
+    --with-gold --ablation lite-s20-seed7-v1-nogate
+tail -f ~/.cache/devpilot/swebench/pipeline.log      # progress
+systemctl --user disable --now devpilot-benchmark    # stop
+```
+
+When it finishes it writes `~/.cache/devpilot/swebench/pipeline-<name>.done` and disables the
+service.
+
 ### Constraints that shaped the setup
 
 - **LLM:** Groq free tier, `openai/gpt-oss-120b` — 8,000 tokens/minute and 1,000
@@ -69,11 +108,13 @@ under **Benchmarks** (`/evals`), including every patch.
   retried as the provider asks. Expect roughly 1–2 minutes per instance per config.
 - **Embeddings on CPU** run at ~10–15 chunks/s, so repositories over 3,000 chunks are indexed
   lazily (text + full-text index up front, vectors only for keyword candidates at query time).
-- **Disk:** each instance image is ~3–4 GB unpacked; scoring removes it after use. A guard
-  (`MIN_FREE_GB_SCORE` = 6 GB, `MIN_FREE_GB_GENERATE` = 2 GB in `app/evals/swebench.py`)
-  checks the tighter of the eval cache's and Docker's filesystems before each instance and
-  stops cleanly instead of filling the disk (which would also take Postgres down); `run-all`
-  then sleeps and retries, so freeing space is enough to let it continue.
+- **Disk (local scoring):** scoring removes each instance image after use, but Docker's
+  containerd image store keeps the compressed layers next to the unpacked ones, so an image
+  needs about 4× its Docker Hub size. Before each instance a guard in `app/evals/swebench.py`
+  looks that size up and requires `max(6 GB, 4 × compressed + 1 GB)` free (12 GB if the lookup
+  fails) on the tighter of the eval cache's and Docker's filesystems; generation requires 2 GB.
+  Below that it stops cleanly instead of filling the disk (which would also take Postgres down),
+  and `run-all`/`pipeline` sleep and retry. Scoring in CI sidesteps all of this.
 - **Network:** some upstream test suites (e.g. `requests`) call real hosts; failures there are
   infra failures, not agent failures — the harness labels them.
 
