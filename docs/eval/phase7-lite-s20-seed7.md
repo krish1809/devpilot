@@ -8,7 +8,7 @@ The agent never sees the benchmark's tests (standard setting): it gets the issue
 |---|---|---|---|---|---|---|---|
 | **RAG, issue only** (realistic) | 0/1 | 0% (0%–79%) | 10/14 | 9/14 | 2.3 | 7,270 | 66s |
 | Oracle file, no retrieval | 0/1 | 0% (0%–79%) | 10/14 | 14/14 | 2.1 | 5,544 | 30s |
-| Oracle file + RAG context | 0/0 | not scored | 9/13 | 13/13 | 2.1 | 7,753 | 37s |
+| Oracle file + RAG context | 0/0 | not scored | 10/14 | 14/14 | 2.1 | 7,690 | 35s |
 | Reference (gold) patch — environment ceiling | 1/1 | 100% (21%–100%) | 1/1 | 1/1 | 0.0 | 0 | 0s |
 
 Scored by: GitHub Actions https://github.com/krish1809/devpilot/actions/runs/39701119345.
@@ -28,7 +28,7 @@ Scored by: GitHub Actions https://github.com/krish1809/devpilot/actions/runs/397
 | matplotlib__matplotlib-23299 | · validated | · error | · error | — |
 | pylint-dev__pylint-7228 | · error | · error | · error | — |
 | scikit-learn__scikit-learn-11040 | · validated | · error | · validated | — |
-| scikit-learn__scikit-learn-15535 | · validated | · validated | — | — |
+| scikit-learn__scikit-learn-15535 | · validated | · validated | · validated | — |
 | sphinx-doc__sphinx-8282 | — | — | — | — |
 | sphinx-doc__sphinx-8801 | — | — | — | — |
 | sympy__sympy-16988 | — | — | — | — |
