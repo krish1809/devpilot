@@ -41,7 +41,7 @@
   "summary": [
     {
       "config": "rag",
-      "generated": 16,
+      "generated": 17,
       "scored": 1,
       "resolved": 0,
       "resolve_rate": 0.0,
@@ -50,11 +50,11 @@
         0.7934567085261071
       ],
       "infra_failures": [],
-      "with_patch": 10,
-      "localized": 9,
-      "avg_tokens": 6361.0,
+      "with_patch": 11,
+      "localized": 10,
+      "avg_tokens": 6394.823529411765,
       "avg_llm_calls": 2.0,
-      "avg_seconds": 57.6375
+      "avg_seconds": 54.7235294117647
     },
     {
       "config": "oracle-file",
@@ -791,6 +791,20 @@
       "completion_tokens": 0,
       "seconds": 0.1,
       "error": "`git checkout --quiet 7ca279e33aebb60168d35e6be4ed059f4a68f2c1 --` failed: fatal: reference is not a tree: 7ca279e33aebb60168d35e6be4ed059f4a68f2c1"
+    },
+    {
+      "instance_id": "sympy__sympy-16988",
+      "config": "rag",
+      "status": "validated",
+      "target_path": "sympy/sets/sets.py",
+      "gold_path": "sympy/sets/sets.py",
+      "localized": true,
+      "resolved": null,
+      "llm_calls": 2,
+      "prompt_tokens": 4755,
+      "completion_tokens": 2181,
+      "seconds": 8.1,
+      "error": null
     }
   ]
 }

@@ -1,12 +1,12 @@
 # SWE-bench Lite — DevPilot (lite-s20-seed7)
 
-Seeded random sample of **20** of the 300 SWE-bench Lite test instances (seed 7); **16 attempted so far**. LLM `openai/gpt-oss-120b` (Groq free tier), embeddings `BAAI/bge-small-en-v1.5`. Patches scored with the **official SWE-bench harness** (`swebench.harness.run_evaluation`): an instance is resolved only if all FAIL_TO_PASS and PASS_TO_PASS tests pass.
+Seeded random sample of **20** of the 300 SWE-bench Lite test instances (seed 7); **17 attempted so far**. LLM `openai/gpt-oss-120b` (Groq free tier), embeddings `BAAI/bge-small-en-v1.5`. Patches scored with the **official SWE-bench harness** (`swebench.harness.run_evaluation`): an instance is resolved only if all FAIL_TO_PASS and PASS_TO_PASS tests pass.
 
 The agent never sees the benchmark's tests (standard setting): it gets the issue text, retrieves/plans/edits one file, and the automated reviewer gates the diff.
 
 | Config | Resolved | Resolve rate (95% CI) | Patch produced | Edited gold file | Avg LLM calls | Avg tokens | Avg time |
 |---|---|---|---|---|---|---|---|
-| **RAG, issue only** (realistic) | 0/1 | 0% (0%–79%) | 10/16 | 9/16 | 2.0 | 6,361 | 58s |
+| **RAG, issue only** (realistic) | 0/1 | 0% (0%–79%) | 11/17 | 10/17 | 2.0 | 6,395 | 55s |
 | Oracle file, no retrieval | 0/1 | 0% (0%–79%) | 10/16 | 16/16 | 1.9 | 4,851 | 27s |
 | Oracle file + RAG context | 0/0 | not scored | 10/16 | 16/16 | 1.8 | 6,728 | 31s |
 | Reference (gold) patch — environment ceiling | 1/1 | 100% (21%–100%) | 1/1 | 1/1 | 0.0 | 0 | 0s |
@@ -31,7 +31,7 @@ Scored by: GitHub Actions https://github.com/krish1809/devpilot/actions/runs/397
 | scikit-learn__scikit-learn-15535 | · validated | · validated | · validated | — |
 | sphinx-doc__sphinx-8282 | · error | · error | · error | — |
 | sphinx-doc__sphinx-8801 | · error | · error | · error | — |
-| sympy__sympy-16988 | — | — | — | — |
+| sympy__sympy-16988 | · validated | — | — | — |
 | sympy__sympy-19487 | — | — | — | — |
 | sympy__sympy-21055 | — | — | — | — |
 | sympy__sympy-24213 | — | — | — | — |
