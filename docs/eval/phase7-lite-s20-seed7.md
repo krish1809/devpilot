@@ -1,14 +1,14 @@
 # SWE-bench Lite — DevPilot (lite-s20-seed7)
 
-Seeded random sample of **20** of the 300 SWE-bench Lite test instances (seed 7); **18 attempted so far**. LLM `openai/gpt-oss-120b` (Groq free tier), embeddings `BAAI/bge-small-en-v1.5`. Patches scored with the **official SWE-bench harness** (`swebench.harness.run_evaluation`): an instance is resolved only if all FAIL_TO_PASS and PASS_TO_PASS tests pass.
+Seeded random sample of **20** of the 300 SWE-bench Lite test instances (seed 7); **20 attempted so far**. LLM `openai/gpt-oss-120b` (Groq free tier), embeddings `BAAI/bge-small-en-v1.5`. Patches scored with the **official SWE-bench harness** (`swebench.harness.run_evaluation`): an instance is resolved only if all FAIL_TO_PASS and PASS_TO_PASS tests pass.
 
 The agent never sees the benchmark's tests (standard setting): it gets the issue text, retrieves/plans/edits one file, and the automated reviewer gates the diff.
 
 | Config | Resolved | Resolve rate (95% CI) | Patch produced | Edited gold file | Avg LLM calls | Avg tokens | Avg time |
 |---|---|---|---|---|---|---|---|
-| **RAG, issue only** (realistic) | 0/1 | 0% (0%–79%) | 12/18 | 11/18 | 2.0 | 6,417 | 52s |
-| Oracle file, no retrieval | 0/1 | 0% (0%–79%) | 12/18 | 18/18 | 1.9 | 4,838 | 25s |
-| Oracle file + RAG context | 0/0 | not scored | 11/17 | 17/17 | 1.8 | 6,762 | 29s |
+| **RAG, issue only** (realistic) | 0/1 | 0% (0%–79%) | 12/20 | 11/20 | 1.8 | 5,776 | 47s |
+| Oracle file, no retrieval | 0/1 | 0% (0%–79%) | 12/20 | 20/20 | 1.7 | 4,354 | 22s |
+| Oracle file + RAG context | 0/0 | not scored | 11/20 | 20/20 | 1.6 | 5,748 | 25s |
 | Reference (gold) patch — environment ceiling | 1/1 | 100% (21%–100%) | 1/1 | 1/1 | 0.0 | 0 | 0s |
 
 Scored by: GitHub Actions https://github.com/krish1809/devpilot/actions/runs/39701119345.
@@ -32,8 +32,8 @@ Scored by: GitHub Actions https://github.com/krish1809/devpilot/actions/runs/397
 | sphinx-doc__sphinx-8282 | · error | · error | · error | — |
 | sphinx-doc__sphinx-8801 | · error | · error | · error | — |
 | sympy__sympy-16988 | · validated | · validated | · validated | — |
-| sympy__sympy-19487 | · validated | · validated | — | — |
-| sympy__sympy-21055 | — | — | — | — |
-| sympy__sympy-24213 | — | — | — | — |
+| sympy__sympy-19487 | · validated | · validated | · error | — |
+| sympy__sympy-21055 | · error | · error | · error | — |
+| sympy__sympy-24213 | · error | · error | · error | — |
 
 Legend: ✅ resolved · ❌ not resolved · · not scored yet · — not run. Status is the agent's final state (`validated` = a patch passed review; `review_failed`/`error` = no patch submitted).

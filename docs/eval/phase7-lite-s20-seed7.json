@@ -41,7 +41,7 @@
   "summary": [
     {
       "config": "rag",
-      "generated": 18,
+      "generated": 20,
       "scored": 1,
       "resolved": 0,
       "resolve_rate": 0.0,
@@ -52,13 +52,13 @@
       "infra_failures": [],
       "with_patch": 12,
       "localized": 11,
-      "avg_tokens": 6417.444444444444,
-      "avg_llm_calls": 2.0,
-      "avg_seconds": 52.06111111111111
+      "avg_tokens": 5775.7,
+      "avg_llm_calls": 1.8,
+      "avg_seconds": 46.864999999999995
     },
     {
       "config": "oracle-file",
-      "generated": 18,
+      "generated": 20,
       "scored": 1,
       "resolved": 0,
       "resolve_rate": 0.0,
@@ -68,24 +68,24 @@
       ],
       "infra_failures": [],
       "with_patch": 12,
-      "localized": 18,
-      "avg_tokens": 4838.111111111111,
-      "avg_llm_calls": 1.8888888888888888,
-      "avg_seconds": 24.522222222222222
+      "localized": 20,
+      "avg_tokens": 4354.3,
+      "avg_llm_calls": 1.7,
+      "avg_seconds": 22.080000000000002
     },
     {
       "config": "oracle-file+rag",
-      "generated": 17,
+      "generated": 20,
       "scored": 0,
       "resolved": 0,
       "resolve_rate": null,
       "ci95": null,
       "infra_failures": [],
       "with_patch": 11,
-      "localized": 17,
-      "avg_tokens": 6762.294117647059,
-      "avg_llm_calls": 1.8235294117647058,
-      "avg_seconds": 29.329411764705885
+      "localized": 20,
+      "avg_tokens": 5747.95,
+      "avg_llm_calls": 1.55,
+      "avg_seconds": 25.25
     },
     {
       "config": "gold",
@@ -850,6 +850,20 @@
     },
     {
       "instance_id": "sympy__sympy-19487",
+      "config": "oracle-file+rag",
+      "status": "error",
+      "target_path": "sympy/functions/elementary/complexes.py",
+      "gold_path": "sympy/functions/elementary/complexes.py",
+      "localized": true,
+      "resolved": null,
+      "llm_calls": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "seconds": 6.2,
+      "error": "LLM request failed after 3 attempts: [Errno -3] Temporary failure in name resolution"
+    },
+    {
+      "instance_id": "sympy__sympy-19487",
       "config": "rag",
       "status": "validated",
       "target_path": "sympy/functions/elementary/complexes.py",
@@ -861,6 +875,90 @@
       "completion_tokens": 1455,
       "seconds": 6.8,
       "error": null
+    },
+    {
+      "instance_id": "sympy__sympy-21055",
+      "config": "oracle-file",
+      "status": "error",
+      "target_path": "sympy/assumptions/refine.py",
+      "gold_path": "sympy/assumptions/refine.py",
+      "localized": true,
+      "resolved": null,
+      "llm_calls": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "seconds": 0.1,
+      "error": "`git checkout --quiet 748ce73479ee2cd5c861431091001cc18943c735 --` failed: fatal: reference is not a tree: 748ce73479ee2cd5c861431091001cc18943c735"
+    },
+    {
+      "instance_id": "sympy__sympy-21055",
+      "config": "oracle-file+rag",
+      "status": "error",
+      "target_path": "sympy/assumptions/refine.py",
+      "gold_path": "sympy/assumptions/refine.py",
+      "localized": true,
+      "resolved": null,
+      "llm_calls": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "seconds": 0.1,
+      "error": "`git checkout --quiet 748ce73479ee2cd5c861431091001cc18943c735 --` failed: fatal: reference is not a tree: 748ce73479ee2cd5c861431091001cc18943c735"
+    },
+    {
+      "instance_id": "sympy__sympy-21055",
+      "config": "rag",
+      "status": "error",
+      "target_path": null,
+      "gold_path": "sympy/assumptions/refine.py",
+      "localized": false,
+      "resolved": null,
+      "llm_calls": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "seconds": 0.1,
+      "error": "`git checkout --quiet 748ce73479ee2cd5c861431091001cc18943c735 --` failed: fatal: reference is not a tree: 748ce73479ee2cd5c861431091001cc18943c735"
+    },
+    {
+      "instance_id": "sympy__sympy-24213",
+      "config": "oracle-file",
+      "status": "error",
+      "target_path": "sympy/physics/units/unitsystem.py",
+      "gold_path": "sympy/physics/units/unitsystem.py",
+      "localized": true,
+      "resolved": null,
+      "llm_calls": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "seconds": 0.1,
+      "error": "`git checkout --quiet e8c22f6eac7314be8d92590bfff92ced79ee03e2 --` failed: fatal: reference is not a tree: e8c22f6eac7314be8d92590bfff92ced79ee03e2"
+    },
+    {
+      "instance_id": "sympy__sympy-24213",
+      "config": "oracle-file+rag",
+      "status": "error",
+      "target_path": "sympy/physics/units/unitsystem.py",
+      "gold_path": "sympy/physics/units/unitsystem.py",
+      "localized": true,
+      "resolved": null,
+      "llm_calls": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "seconds": 0.1,
+      "error": "`git checkout --quiet e8c22f6eac7314be8d92590bfff92ced79ee03e2 --` failed: fatal: reference is not a tree: e8c22f6eac7314be8d92590bfff92ced79ee03e2"
+    },
+    {
+      "instance_id": "sympy__sympy-24213",
+      "config": "rag",
+      "status": "error",
+      "target_path": null,
+      "gold_path": "sympy/physics/units/unitsystem.py",
+      "localized": false,
+      "resolved": null,
+      "llm_calls": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "seconds": 0.1,
+      "error": "`git checkout --quiet e8c22f6eac7314be8d92590bfff92ced79ee03e2 --` failed: fatal: reference is not a tree: e8c22f6eac7314be8d92590bfff92ced79ee03e2"
     }
   ]
 }

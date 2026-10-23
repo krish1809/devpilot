@@ -76,7 +76,7 @@ only retrieval fixed the *actual* bug every time:
 <!-- swebench:start -->
 **SWE-bench Lite** ([method](docs/eval/README.md)) — a seeded random sample of 20 real issues from Django, Matplotlib, Pylint, scikit-learn, Sphinx and SymPy, run with a free-tier open-weight model (`openai/gpt-oss-120b` on Groq) and scored by the official SWE-bench harness. The agent sees only the issue text; the benchmark's tests stay hidden.
 
-**In progress:** 18/20 instances attempted so far. The run is paced by the free tier's daily token quota, and the numbers are published here once every patch has been scored.
+**In progress:** 20/20 instances attempted so far. The run is paced by the free tier's daily token quota, and the numbers are published here once every patch has been scored.
 
 [Current partial report](docs/eval/phase7-lite-s20-seed7.md) · [earlier agent version](docs/eval/phase7-lite-s20-seed7-v1-nogate.md)
 
