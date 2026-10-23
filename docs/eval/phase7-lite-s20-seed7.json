@@ -41,7 +41,7 @@
   "summary": [
     {
       "config": "rag",
-      "generated": 14,
+      "generated": 16,
       "scored": 1,
       "resolved": 0,
       "resolve_rate": 0.0,
@@ -52,13 +52,13 @@
       "infra_failures": [],
       "with_patch": 10,
       "localized": 9,
-      "avg_tokens": 7269.714285714285,
-      "avg_llm_calls": 2.2857142857142856,
-      "avg_seconds": 65.80714285714285
+      "avg_tokens": 6361.0,
+      "avg_llm_calls": 2.0,
+      "avg_seconds": 57.6375
     },
     {
       "config": "oracle-file",
-      "generated": 14,
+      "generated": 16,
       "scored": 1,
       "resolved": 0,
       "resolve_rate": 0.0,
@@ -68,24 +68,24 @@
       ],
       "infra_failures": [],
       "with_patch": 10,
-      "localized": 14,
-      "avg_tokens": 5544.5,
-      "avg_llm_calls": 2.142857142857143,
-      "avg_seconds": 30.357142857142858
+      "localized": 16,
+      "avg_tokens": 4851.4375,
+      "avg_llm_calls": 1.875,
+      "avg_seconds": 26.86875
     },
     {
       "config": "oracle-file+rag",
-      "generated": 14,
+      "generated": 16,
       "scored": 0,
       "resolved": 0,
       "resolve_rate": null,
       "ci95": null,
       "infra_failures": [],
       "with_patch": 10,
-      "localized": 14,
-      "avg_tokens": 7689.642857142857,
-      "avg_llm_calls": 2.0714285714285716,
-      "avg_seconds": 35.1
+      "localized": 16,
+      "avg_tokens": 6728.4375,
+      "avg_llm_calls": 1.8125,
+      "avg_seconds": 30.7375
     },
     {
       "config": "gold",
@@ -707,6 +707,90 @@
       "completion_tokens": 2089,
       "seconds": 6.9,
       "error": null
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-8282",
+      "config": "oracle-file",
+      "status": "error",
+      "target_path": "sphinx/ext/autodoc/__init__.py",
+      "gold_path": "sphinx/ext/autodoc/__init__.py",
+      "localized": true,
+      "resolved": null,
+      "llm_calls": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "seconds": 4.9,
+      "error": "LLM request failed after 3 attempts: [Errno -3] Temporary failure in name resolution"
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-8282",
+      "config": "oracle-file+rag",
+      "status": "error",
+      "target_path": "sphinx/ext/autodoc/__init__.py",
+      "gold_path": "sphinx/ext/autodoc/__init__.py",
+      "localized": true,
+      "resolved": null,
+      "llm_calls": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "seconds": 0.3,
+      "error": "Could not load embedding model 'BAAI/bge-small-en-v1.5': [Errno -3] Temporary failure in name resolution"
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-8282",
+      "config": "rag",
+      "status": "error",
+      "target_path": null,
+      "gold_path": "sphinx/ext/autodoc/__init__.py",
+      "localized": false,
+      "resolved": null,
+      "llm_calls": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "seconds": 0.8,
+      "error": "Could not load embedding model 'BAAI/bge-small-en-v1.5': [Errno -3] Temporary failure in name resolution"
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-8801",
+      "config": "oracle-file",
+      "status": "error",
+      "target_path": "sphinx/ext/autodoc/importer.py",
+      "gold_path": "sphinx/ext/autodoc/importer.py",
+      "localized": true,
+      "resolved": null,
+      "llm_calls": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "seconds": 0.0,
+      "error": "`git checkout --quiet 7ca279e33aebb60168d35e6be4ed059f4a68f2c1 --` failed: fatal: reference is not a tree: 7ca279e33aebb60168d35e6be4ed059f4a68f2c1"
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-8801",
+      "config": "oracle-file+rag",
+      "status": "error",
+      "target_path": "sphinx/ext/autodoc/importer.py",
+      "gold_path": "sphinx/ext/autodoc/importer.py",
+      "localized": true,
+      "resolved": null,
+      "llm_calls": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "seconds": 0.1,
+      "error": "`git checkout --quiet 7ca279e33aebb60168d35e6be4ed059f4a68f2c1 --` failed: fatal: reference is not a tree: 7ca279e33aebb60168d35e6be4ed059f4a68f2c1"
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-8801",
+      "config": "rag",
+      "status": "error",
+      "target_path": null,
+      "gold_path": "sphinx/ext/autodoc/importer.py",
+      "localized": false,
+      "resolved": null,
+      "llm_calls": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "seconds": 0.1,
+      "error": "`git checkout --quiet 7ca279e33aebb60168d35e6be4ed059f4a68f2c1 --` failed: fatal: reference is not a tree: 7ca279e33aebb60168d35e6be4ed059f4a68f2c1"
     }
   ]
 }
