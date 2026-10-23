@@ -58,7 +58,7 @@
     },
     {
       "config": "oracle-file",
-      "generated": 17,
+      "generated": 18,
       "scored": 1,
       "resolved": 0,
       "resolve_rate": 0.0,
@@ -67,11 +67,11 @@
         0.7934567085261071
       ],
       "infra_failures": [],
-      "with_patch": 11,
-      "localized": 17,
-      "avg_tokens": 4839.470588235294,
-      "avg_llm_calls": 1.8823529411764706,
-      "avg_seconds": 25.61176470588235
+      "with_patch": 12,
+      "localized": 18,
+      "avg_tokens": 4838.111111111111,
+      "avg_llm_calls": 1.8888888888888888,
+      "avg_seconds": 24.522222222222222
     },
     {
       "config": "oracle-file+rag",
@@ -832,6 +832,20 @@
       "prompt_tokens": 4755,
       "completion_tokens": 2181,
       "seconds": 8.1,
+      "error": null
+    },
+    {
+      "instance_id": "sympy__sympy-19487",
+      "config": "oracle-file",
+      "status": "validated",
+      "target_path": "sympy/functions/elementary/complexes.py",
+      "gold_path": "sympy/functions/elementary/complexes.py",
+      "localized": true,
+      "resolved": null,
+      "llm_calls": 2,
+      "prompt_tokens": 3212,
+      "completion_tokens": 1603,
+      "seconds": 6.0,
       "error": null
     },
     {
