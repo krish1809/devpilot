@@ -75,17 +75,17 @@
     },
     {
       "config": "oracle-file+rag",
-      "generated": 16,
+      "generated": 17,
       "scored": 0,
       "resolved": 0,
       "resolve_rate": null,
       "ci95": null,
       "infra_failures": [],
-      "with_patch": 10,
-      "localized": 16,
-      "avg_tokens": 6728.4375,
-      "avg_llm_calls": 1.8125,
-      "avg_seconds": 30.7375
+      "with_patch": 11,
+      "localized": 17,
+      "avg_tokens": 6762.294117647059,
+      "avg_llm_calls": 1.8235294117647058,
+      "avg_seconds": 29.329411764705885
     },
     {
       "config": "gold",
@@ -804,6 +804,20 @@
       "prompt_tokens": 3275,
       "completion_tokens": 1373,
       "seconds": 5.5,
+      "error": null
+    },
+    {
+      "instance_id": "sympy__sympy-16988",
+      "config": "oracle-file+rag",
+      "status": "validated",
+      "target_path": "sympy/sets/sets.py",
+      "gold_path": "sympy/sets/sets.py",
+      "localized": true,
+      "resolved": null,
+      "llm_calls": 2,
+      "prompt_tokens": 5938,
+      "completion_tokens": 1366,
+      "seconds": 6.8,
       "error": null
     },
     {

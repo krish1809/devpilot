@@ -8,7 +8,7 @@ The agent never sees the benchmark's tests (standard setting): it gets the issue
 |---|---|---|---|---|---|---|---|
 | **RAG, issue only** (realistic) | 0/1 | 0% (0%–79%) | 11/17 | 10/17 | 2.0 | 6,395 | 55s |
 | Oracle file, no retrieval | 0/1 | 0% (0%–79%) | 11/17 | 17/17 | 1.9 | 4,839 | 26s |
-| Oracle file + RAG context | 0/0 | not scored | 10/16 | 16/16 | 1.8 | 6,728 | 31s |
+| Oracle file + RAG context | 0/0 | not scored | 11/17 | 17/17 | 1.8 | 6,762 | 29s |
 | Reference (gold) patch — environment ceiling | 1/1 | 100% (21%–100%) | 1/1 | 1/1 | 0.0 | 0 | 0s |
 
 Scored by: GitHub Actions https://github.com/krish1809/devpilot/actions/runs/39701119345.
@@ -31,7 +31,7 @@ Scored by: GitHub Actions https://github.com/krish1809/devpilot/actions/runs/397
 | scikit-learn__scikit-learn-15535 | · validated | · validated | · validated | — |
 | sphinx-doc__sphinx-8282 | · error | · error | · error | — |
 | sphinx-doc__sphinx-8801 | · error | · error | · error | — |
-| sympy__sympy-16988 | · validated | · validated | — | — |
+| sympy__sympy-16988 | · validated | · validated | · validated | — |
 | sympy__sympy-19487 | — | — | — | — |
 | sympy__sympy-21055 | — | — | — | — |
 | sympy__sympy-24213 | — | — | — | — |
