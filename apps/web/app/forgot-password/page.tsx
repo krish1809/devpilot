@@ -51,8 +51,8 @@ export default function ForgotPasswordPage() {
         <div role="status" className="space-y-3 text-center text-sm">
           <MailCheck className="mx-auto h-10 w-10 text-success-fg" aria-hidden />
           <p>
-            If an account exists for <span className="font-medium">{sentTo}</span>, we&apos;ve
-            sent it a link to reset the password.
+            If an account exists for <span className="font-medium">{sentTo}</span>, we&apos;ve sent
+            it a link to reset the password.
           </p>
           <p className="text-muted-foreground">
             The link works once and expires in 30 minutes. Didn&apos;t get it? Check your spam

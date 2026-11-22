@@ -30,7 +30,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     // data-theme is set before paint by the inline script, so React must not
     // complain that the server HTML lacked it.
-    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
+    <html
+      lang="en"
+      className={`${inter.variable} ${jetbrainsMono.variable}`}
+      suppressHydrationWarning
+    >
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>

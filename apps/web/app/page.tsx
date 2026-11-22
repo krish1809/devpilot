@@ -24,11 +24,31 @@ import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 
 const STEPS = [
-  { Icon: FileSearch, title: "Retrieve", text: "Indexes the repo and finds the code the issue is really about." },
-  { Icon: ListChecks, title: "Plan & patch", text: "Plans a fix and edits the file — bounded attempts, tokens and time." },
-  { Icon: TerminalSquare, title: "Test in a sandbox", text: "Runs the project's tests in a network-less Docker container." },
-  { Icon: UserCheck, title: "You approve", text: "You review the diff, plan and trace. Nothing ships without you." },
-  { Icon: GitPullRequest, title: "Pull request", text: "Only then does it push a branch and open the PR." },
+  {
+    Icon: FileSearch,
+    title: "Retrieve",
+    text: "Indexes the repo and finds the code the issue is really about.",
+  },
+  {
+    Icon: ListChecks,
+    title: "Plan & patch",
+    text: "Plans a fix and edits the file — bounded attempts, tokens and time.",
+  },
+  {
+    Icon: TerminalSquare,
+    title: "Test in a sandbox",
+    text: "Runs the project's tests in a network-less Docker container.",
+  },
+  {
+    Icon: UserCheck,
+    title: "You approve",
+    text: "You review the diff, plan and trace. Nothing ships without you.",
+  },
+  {
+    Icon: GitPullRequest,
+    title: "Pull request",
+    text: "Only then does it push a branch and open the PR.",
+  },
 ];
 
 const HIGHLIGHTS = [

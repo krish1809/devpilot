@@ -127,12 +127,7 @@ export default function RegisterPage() {
             />
           )}
         </Field>
-        <Field
-          id="password"
-          label="Password"
-          hint="8–128 characters."
-          error={fieldErrors.password}
-        >
+        <Field id="password" label="Password" hint="8–128 characters." error={fieldErrors.password}>
           {(control) => (
             <PasswordInput
               {...control}
