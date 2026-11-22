@@ -38,3 +38,15 @@ describe("LoginPage", () => {
     expect(screen.getByText("Sign up")).toBeTruthy();
   });
 });
+
+describe("LoginPage links", () => {
+  it("links to forgot-password and explains an ended session", () => {
+    Object.assign(auth, { demoMode: false, sessionExpired: true });
+    render(<LoginPage />);
+    expect(screen.getByRole("link", { name: /forgot password/i }).getAttribute("href")).toBe(
+      "/forgot-password",
+    );
+    expect(screen.getByText(/session has ended/i)).toBeTruthy();
+    Object.assign(auth, { sessionExpired: false });
+  });
+});

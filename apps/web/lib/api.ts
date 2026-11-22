@@ -6,6 +6,7 @@ import type {
   GitHubIssue,
   GitHubRepo,
   GitHubTree,
+  MessageResponse,
   Project,
   RunCheckpoint,
   RunTrace,
@@ -46,12 +47,34 @@ export function setStoredToken(token: string | null): void {
 
 export class ApiError extends Error {
   status: number;
+  /** Per-field messages from a 422 validation error, keyed by field name. */
+  fields: Record<string, string>;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, fields: Record<string, string> = {}) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.fields = fields;
   }
+}
+
+/** Fired on `window` when a signed-in request gets 401 (expired or revoked session). */
+export const UNAUTHORIZED_EVENT = "devpilot:unauthorized";
+
+// Endpoints where 401 means "wrong credentials", not "your session ended".
+const CREDENTIAL_PATHS = ["/api/v1/auth/login", "/api/v1/auth/demo"];
+
+function signalUnauthorized(path: string, sentToken: boolean): void {
+  if (!sentToken || typeof window === "undefined") return;
+  if (CREDENTIAL_PATHS.some((p) => path.startsWith(p))) return;
+  window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
+}
+
+/** Pydantic prefixes custom validator messages with "Value error, ". */
+const cleanMsg = (msg: string) => msg.replace(/^Value error, /, "");
+
+function fieldName(loc: unknown): string {
+  return Array.isArray(loc) && loc.length ? String(loc[loc.length - 1]) : "";
 }
 
 /** Turn a FastAPI/Pydantic error body into a readable message. */
@@ -62,12 +85,26 @@ function extractMessage(status: number, body: unknown): string {
     if (Array.isArray(detail)) {
       const first = detail[0] as { msg?: string; loc?: unknown[] } | undefined;
       if (first?.msg) {
-        const field = Array.isArray(first.loc) ? first.loc[first.loc.length - 1] : "";
-        return field ? `${field}: ${first.msg}` : first.msg;
+        const field = fieldName(first.loc);
+        return field ? `${field}: ${cleanMsg(first.msg)}` : cleanMsg(first.msg);
       }
     }
   }
   return `Request failed (${status})`;
+}
+
+function extractFields(body: unknown): Record<string, string> {
+  const fields: Record<string, string> = {};
+  if (body && typeof body === "object" && "detail" in body) {
+    const detail = (body as { detail: unknown }).detail;
+    if (Array.isArray(detail)) {
+      for (const item of detail as { msg?: string; loc?: unknown[] }[]) {
+        const field = fieldName(item?.loc);
+        if (field && item.msg && !(field in fields)) fields[field] = cleanMsg(item.msg);
+      }
+    }
+  }
+  return fields;
 }
 
 interface RequestOptions {
@@ -108,7 +145,12 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
 
   if (!response.ok) {
-    throw new ApiError(response.status, extractMessage(response.status, data));
+    if (response.status === 401) signalUnauthorized(path, Boolean(authToken));
+    throw new ApiError(
+      response.status,
+      extractMessage(response.status, data),
+      response.status === 422 ? extractFields(data) : {},
+    );
   }
   return data as T;
 }
@@ -134,6 +176,7 @@ async function streamRun(
     signal,
   });
   if (!response.ok || !response.body) {
+    if (response.status === 401) signalUnauthorized("/api/v1/runs", Boolean(token));
     throw new ApiError(response.status, `Live updates unavailable (${response.status})`);
   }
 
@@ -163,6 +206,19 @@ export const api = {
     }),
 
   me: (token?: string) => request<User>("/api/v1/auth/me", { token }),
+
+  /** Always resolves with the same generic message, whether or not the account exists. */
+  forgotPassword: (email: string) =>
+    request<MessageResponse>("/api/v1/auth/forgot-password", {
+      method: "POST",
+      body: { email },
+    }),
+
+  resetPassword: (token: string, newPassword: string) =>
+    request<MessageResponse>("/api/v1/auth/reset-password", {
+      method: "POST",
+      body: { token, new_password: newPassword },
+    }),
 
   /** Public flags (e.g. read-only showcase mode). */
   getConfig: () => request<{ demo_mode: boolean }>("/api/v1/config"),

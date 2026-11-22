@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 
-import { api, getStoredToken, setStoredToken } from "./api";
+import { api, getStoredToken, setStoredToken, UNAUTHORIZED_EVENT } from "./api";
 import type { User } from "./types";
 
 interface AuthContextValue {
@@ -21,6 +21,8 @@ interface AuthContextValue {
   /** True when the API is a read-only public showcase (DEMO_MODE). */
   demoMode: boolean;
   loginDemo: () => Promise<void>;
+  /** True after the API rejected a stored session (expired, or revoked by a password reset). */
+  sessionExpired: boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -29,6 +31,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [demoMode, setDemoMode] = useState(false);
+  const [sessionExpired, setSessionExpired] = useState(false);
+
+  // Any signed-in request that gets 401 ends the session everywhere in the app;
+  // protected pages then redirect to /login, which explains why.
+  useEffect(() => {
+    const onUnauthorized = () => {
+      setStoredToken(null);
+      setUser(null);
+      setSessionExpired(true);
+    };
+    window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
+    return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
+  }, []);
 
   useEffect(() => {
     api
@@ -58,6 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const token = await api.login(email, password);
     setStoredToken(token.access_token);
     setUser(await api.me(token.access_token));
+    setSessionExpired(false);
   }, []);
 
   const register = useCallback(async (email: string, password: string) => {
@@ -71,16 +87,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const token = await api.demoLogin();
     setStoredToken(token.access_token);
     setUser(await api.me(token.access_token));
+    setSessionExpired(false);
   }, []);
 
   const logout = useCallback(() => {
     setStoredToken(null);
     setUser(null);
+    setSessionExpired(false);
   }, []);
 
   const value = useMemo(
-    () => ({ user, loading, login, register, logout, demoMode, loginDemo }),
-    [user, loading, login, register, logout, demoMode, loginDemo],
+    () => ({ user, loading, login, register, logout, demoMode, loginDemo, sessionExpired }),
+    [user, loading, login, register, logout, demoMode, loginDemo, sessionExpired],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
