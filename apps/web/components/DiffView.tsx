@@ -36,7 +36,7 @@ export function DiffView({ diff, className }: { diff: string; className?: string
           line{added + removed === 1 ? "" : "s"} changed
         </span>
       </div>
-      <pre className="max-h-[28rem] overflow-auto bg-background py-2 font-mono text-xs leading-5">
+      <pre className="relative max-h-[28rem] overflow-auto bg-background py-2 font-mono text-xs leading-5">
         <code className="block w-max min-w-full">
           {lines.map((line, i) => {
             const kind = classifyLine(line);

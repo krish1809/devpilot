@@ -70,7 +70,7 @@ export function Timeline({ events, running }: { events: RunEvent[]; running: boo
               <span className="mr-2 inline-block rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
                 {e.stage}
               </span>
-              <span className="text-foreground/90">{e.message}</span>
+              <span className="text-foreground/90 [overflow-wrap:anywhere]">{e.message}</span>
             </p>
           </li>
         );

@@ -15,7 +15,10 @@ vi.mock("@/lib/auth", () => ({
 }));
 vi.mock("@/lib/api", async (orig) => {
   const actual = await orig<typeof import("@/lib/api")>();
-  return { ...actual, api: { getProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn() } };
+  return {
+    ...actual,
+    api: { getProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn() },
+  };
 });
 const mocked = api as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
@@ -49,7 +52,9 @@ describe("ProjectDetailPage", () => {
 
   it("keeps Save disabled until something changes", async () => {
     render(<ProjectDetailPage />);
-    const save = (await screen.findByRole("button", { name: /save changes/i })) as HTMLButtonElement;
+    const save = (await screen.findByRole("button", {
+      name: /save changes/i,
+    })) as HTMLButtonElement;
     expect(save.disabled).toBe(true);
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Beta" } });
     expect(save.disabled).toBe(false);

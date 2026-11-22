@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 
 import { Nav } from "@/components/Nav";
-import { themeInitScript } from "@/components/theme";
+import { ThemeToggle, themeInitScript } from "@/components/theme";
 import { ToastProvider } from "@/components/ui/toast";
 import { AuthProvider } from "@/lib/auth";
 import "./globals.css";
@@ -54,6 +54,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <footer className="border-t border-border">
               <div className="mx-auto flex max-w-page flex-col gap-2 px-4 py-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6">
                 <p>DevPilot — a human-supervised AI software engineer. Portfolio project.</p>
+                <ThemeToggle className="self-start sm:hidden" />
                 <a
                   href="https://github.com/krish1809/devpilot"
                   target="_blank"

@@ -164,7 +164,7 @@ function RunDetail({ run }: { run: EvalRunDetail }) {
             sees the benchmark&apos;s tests
           </p>
         </CardHeader>
-        <CardContent className="overflow-x-auto">
+        <CardContent className="relative overflow-x-auto">
           <table className="w-full text-sm">
             <caption className="sr-only">Results per configuration</caption>
             <thead className="text-left text-xs text-muted-foreground">
@@ -265,7 +265,7 @@ function ResultsMatrix({ run }: { run: EvalRunDetail }) {
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="overflow-x-auto rounded-md border border-border">
+        <div className="relative overflow-x-auto rounded-md border border-border">
           <table className="w-full text-sm">
             <caption className="sr-only">
               Result for each benchmark instance and configuration
@@ -287,7 +287,8 @@ function ResultsMatrix({ run }: { run: EvalRunDetail }) {
                 <tr key={iid} className="border-t border-border">
                   <th
                     scope="row"
-                    className="sticky left-0 whitespace-nowrap bg-surface px-3 py-1.5 text-left font-mono text-xs font-normal"
+                    title={iid}
+                    className="sticky left-0 max-w-[8.5rem] truncate whitespace-nowrap bg-surface px-3 py-1.5 text-left font-mono text-xs font-normal sm:max-w-none"
                   >
                     {iid}
                   </th>
@@ -307,7 +308,9 @@ function ResultsMatrix({ run }: { run: EvalRunDetail }) {
                             }`}
                           >
                             <ResultMark r={r} />
-                            <span className="text-xs text-muted-foreground">{r.status}</span>
+                            <span className="hidden text-xs text-muted-foreground sm:inline">
+                              {r.status}
+                            </span>
                           </button>
                         ) : (
                           <span className="inline-flex px-1.5 text-muted-foreground">

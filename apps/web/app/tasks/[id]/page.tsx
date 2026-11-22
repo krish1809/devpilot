@@ -636,7 +636,7 @@ function TraceView({ runId, status }: { runId: number; status: string }) {
             {(trace.llm_latency_ms / 1000).toFixed(1)}s model time · {trace.tool_calls.length} tool
             calls
           </p>
-          <div className="overflow-x-auto">
+          <div className="relative overflow-x-auto">
             <table className="w-full">
               <caption className="sr-only">LLM calls</caption>
               <thead className="text-left text-muted-foreground">
@@ -680,7 +680,7 @@ function TraceView({ runId, status }: { runId: number; status: string }) {
             </table>
           </div>
           {trace.tool_calls.length > 0 && (
-            <div className="overflow-x-auto">
+            <div className="relative overflow-x-auto">
               <table className="w-full">
                 <caption className="sr-only">MCP tool calls</caption>
                 <thead className="text-left text-muted-foreground">
