@@ -1,24 +1,27 @@
 "use client";
 
-import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, Trash2 } from "lucide-react";
+import { FolderKanban, Trash2 } from "lucide-react";
 
 import { ErrorAlert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ui/dialog";
+import { Field } from "@/components/ui/field";
 import { Input, Textarea } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { EmptyState, PageHeader, PageLoading, Skeleton } from "@/components/ui/page";
 import { Spinner } from "@/components/ui/spinner";
+import { useToast } from "@/components/ui/toast";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import type { Project } from "@/lib/types";
 import { formatDate } from "@/lib/utils";
 
 export default function ProjectDetailPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, demoMode } = useAuth();
   const router = useRouter();
+  const toast = useToast();
   const params = useParams<{ id: string }>();
   const projectId = Number(params.id);
 
@@ -30,7 +33,8 @@ export default function ProjectDetailPage() {
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
@@ -55,10 +59,18 @@ export default function ProjectDetailPage() {
     if (user && Number.isFinite(projectId)) load();
   }, [user, projectId, load]);
 
+  const dirty =
+    project !== null &&
+    (name.trim() !== project.name || (description.trim() || null) !== project.description);
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setSaveError(null);
-    setSaved(false);
+    setFieldErrors({});
+    if (!name.trim()) {
+      setFieldErrors({ name: "A project needs a name." });
+      return;
+    }
     setSaving(true);
     try {
       const updated = await api.updateProject(projectId, {
@@ -66,109 +78,137 @@ export default function ProjectDetailPage() {
         description: description.trim() || null,
       });
       setProject(updated);
-      setSaved(true);
+      toast({ tone: "success", title: "Changes saved" });
     } catch (err) {
-      setSaveError(err instanceof ApiError ? err.message : "Failed to save changes");
+      if (err instanceof ApiError && Object.keys(err.fields).length) setFieldErrors(err.fields);
+      else setSaveError(err instanceof ApiError ? err.message : "Failed to save changes");
     } finally {
       setSaving(false);
     }
   }
 
   async function handleDelete() {
-    if (!window.confirm("Delete this project? This cannot be undone.")) return;
     setDeleting(true);
     try {
       await api.deleteProject(projectId);
+      toast({ tone: "success", title: "Project deleted", description: project?.name });
       router.push("/projects");
     } catch (err) {
+      setConfirmOpen(false);
       setSaveError(err instanceof ApiError ? err.message : "Failed to delete project");
       setDeleting(false);
     }
   }
 
-  if (authLoading || !user) {
+  if (authLoading || !user) return <PageLoading />;
+
+  const back = { href: "/projects", label: "All projects" };
+
+  if (notFound) {
     return (
-      <div className="flex justify-center py-24 text-muted-foreground">
-        <Spinner className="mr-2" /> Loading…
+      <div className="space-y-6">
+        <PageHeader title="Project not found" back={back} />
+        <EmptyState
+          icon={FolderKanban}
+          title="This project doesn't exist"
+          description="It may have been deleted, or it belongs to another account."
+        />
       </div>
     );
   }
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <Link
-        href="/projects"
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" /> Back to projects
-      </Link>
+      <PageHeader
+        back={back}
+        title={project?.name ?? "Project"}
+        description={
+          project
+            ? `Created ${formatDate(project.created_at)} · updated ${formatDate(project.updated_at)}`
+            : undefined
+        }
+      />
 
-      {notFound ? (
-        <ErrorAlert message="Project not found (it may not exist or may not be yours)." />
-      ) : loadError ? (
-        <ErrorAlert message={loadError} />
-      ) : project === null ? (
-        <div className="flex justify-center py-12 text-muted-foreground">
-          <Spinner className="mr-2" /> Loading project…
+      {loadError ? (
+        <div className="space-y-3">
+          <ErrorAlert message={loadError} />
+          <Button variant="outline" onClick={load}>
+            Try again
+          </Button>
         </div>
+      ) : project === null ? (
+        <Skeleton className="h-72 w-full" />
       ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle>Edit project</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSave} className="space-y-4">
-              {saveError && <ErrorAlert message={saveError} />}
-              {saved && (
-                <p className="text-sm text-success">Changes saved.</p>
-              )}
-              <div>
-                <Label htmlFor="name">Name</Label>
-                <Input
-                  id="name"
-                  value={name}
-                  onChange={(e) => {
-                    setName(e.target.value);
-                    setSaved(false);
-                  }}
-                  maxLength={100}
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  value={description}
-                  onChange={(e) => {
-                    setDescription(e.target.value);
-                    setSaved(false);
-                  }}
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <Button type="submit" disabled={saving}>
-                  {saving && <Spinner />}
-                  Save changes
-                </Button>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  onClick={handleDelete}
-                  disabled={deleting}
-                >
-                  {deleting ? <Spinner /> : <Trash2 className="h-4 w-4" />}
+        <>
+          <Card>
+            <CardContent className="p-5">
+              <form onSubmit={handleSave} className="space-y-4">
+                <h2 className="text-base font-semibold">Details</h2>
+                {saveError && <ErrorAlert message={saveError} />}
+                <Field id="name" label="Name" error={fieldErrors.name}>
+                  {(c) => (
+                    <Input
+                      {...c}
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      maxLength={100}
+                      disabled={demoMode}
+                    />
+                  )}
+                </Field>
+                <Field id="description" label="Description" error={fieldErrors.description}>
+                  {(c) => (
+                    <Textarea
+                      {...c}
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      disabled={demoMode}
+                    />
+                  )}
+                </Field>
+                {!demoMode && (
+                  <Button type="submit" disabled={saving || !dirty}>
+                    {saving && <Spinner />}
+                    Save changes
+                  </Button>
+                )}
+              </form>
+            </CardContent>
+          </Card>
+
+          {!demoMode && (
+            <Card className="border-destructive/30">
+              <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-base font-semibold">Delete project</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Permanently removes this project. This can&apos;t be undone.
+                  </p>
+                </div>
+                <Button variant="destructive" onClick={() => setConfirmOpen(true)}>
+                  <Trash2 className="h-4 w-4" aria-hidden />
                   Delete
                 </Button>
-              </div>
-            </form>
+              </CardContent>
+            </Card>
+          )}
 
-            <dl className="mt-6 space-y-1 border-t border-border pt-4 text-xs text-muted-foreground">
-              <div>Created {formatDate(project.created_at)}</div>
-              <div>Updated {formatDate(project.updated_at)}</div>
-            </dl>
-          </CardContent>
-        </Card>
+          <ConfirmDialog
+            open={confirmOpen}
+            title="Delete this project?"
+            description={
+              <>
+                <span className="font-medium text-foreground">{project.name}</span> will be
+                permanently deleted. This can&apos;t be undone.
+              </>
+            }
+            confirmLabel="Delete project"
+            destructive
+            busy={deleting}
+            onConfirm={handleDelete}
+            onCancel={() => setConfirmOpen(false)}
+          />
+        </>
       )}
     </div>
   );
