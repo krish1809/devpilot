@@ -3,19 +3,21 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { Bot, Plus } from "lucide-react";
+import { Bot, ChevronRight, GitBranch, Github, Plus, X } from "lucide-react";
 
 import { ImportFromIssue } from "@/components/ImportFromIssue";
 import { ErrorAlert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { Field } from "@/components/ui/field";
 import { Input, Textarea } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { EmptyState, ListSkeleton, PageHeader, PageLoading } from "@/components/ui/page";
 import { Spinner } from "@/components/ui/spinner";
+import { useToast } from "@/components/ui/toast";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import type { Task } from "@/lib/types";
-import { formatDate } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 
 const EMPTY = {
   repo_url: "",
@@ -25,15 +27,21 @@ const EMPTY = {
   description: "",
 };
 
+type Source = "issue" | "manual";
+
 export default function TasksPage() {
   const { user, loading: authLoading, demoMode } = useAuth();
   const router = useRouter();
+  const toast = useToast();
 
   const [tasks, setTasks] = useState<Task[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [creatingOpen, setCreatingOpen] = useState(false);
+  const [source, setSource] = useState<Source>("issue");
   const [form, setForm] = useState({ ...EMPTY });
   const [creating, setCreating] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!authLoading && !user) router.replace("/login");
@@ -56,9 +64,19 @@ export default function TasksPage() {
     setForm((f) => ({ ...f, [field]: value }));
   }
 
+  function created(task: Task) {
+    toast({
+      tone: "success",
+      title: "Task created",
+      description: "Run the agent when you're ready.",
+    });
+    router.push(`/tasks/${task.id}`);
+  }
+
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setFormError(null);
+    setFieldErrors({});
     setCreating(true);
     try {
       const task = await api.createTask({
@@ -69,159 +87,218 @@ export default function TasksPage() {
         description: form.description.trim() || null,
       });
       setForm({ ...EMPTY });
-      await load();
-      router.push(`/tasks/${task.id}`);
+      created(task);
     } catch (err) {
-      setFormError(
-        err instanceof ApiError ? err.message : "Failed to create task",
-      );
+      if (err instanceof ApiError && Object.keys(err.fields).length) setFieldErrors(err.fields);
+      else setFormError(err instanceof ApiError ? err.message : "Failed to create task");
     } finally {
       setCreating(false);
     }
   }
 
-  if (authLoading || !user) {
-    return (
-      <div className="flex justify-center py-24 text-muted-foreground">
-        <Spinner className="mr-2" /> Loading…
-      </div>
-    );
-  }
+  if (authLoading || !user) return <PageLoading />;
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-          <Bot className="h-6 w-6 text-primary" /> Agent tasks
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {demoMode
-            ? "Real runs recorded with DevPilot: open one to see the plan, the retrieved context, the diff, the sandbox result, the trace and the pull request."
-            : "Import a GitHub issue (or point at any repo with a failing test); the agent proposes a fix and opens a PR after your approval."}
-        </p>
-      </div>
+      <PageHeader
+        icon={Bot}
+        title="Agent tasks"
+        description={
+          demoMode
+            ? "Real runs recorded with DevPilot. Open one to see the plan, the retrieved context, the diff, the sandbox result, the trace and the pull request."
+            : "Import a GitHub issue (or point at any repo with a failing test). The agent proposes a fix and opens a PR after your approval."
+        }
+        actions={
+          !demoMode && (
+            <Button
+              onClick={() => setCreatingOpen((o) => !o)}
+              aria-expanded={creatingOpen}
+              aria-controls="new-task"
+              variant={creatingOpen ? "outline" : "primary"}
+            >
+              {creatingOpen ? (
+                <X className="h-4 w-4" aria-hidden />
+              ) : (
+                <Plus className="h-4 w-4" aria-hidden />
+              )}
+              {creatingOpen ? "Close" : "New task"}
+            </Button>
+          )
+        }
+      />
 
-      {!demoMode && (
-        <>
-          <ImportFromIssue
-            onCreated={(task) => router.push(`/tasks/${task.id}`)}
-          />
+      {!demoMode && creatingOpen && (
+        <Card id="new-task">
+          <CardContent className="space-y-5 p-5">
+            <div
+              role="group"
+              aria-label="Task source"
+              className="inline-flex rounded-md border border-border p-0.5"
+            >
+              {(
+                [
+                  ["issue", "From a GitHub issue", Github],
+                  ["manual", "Any git repository", GitBranch],
+                ] as const
+              ).map(([value, label, Icon]) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={source === value}
+                  onClick={() => setSource(value)}
+                  className={cn(
+                    "inline-flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium transition-colors",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    source === value
+                      ? "bg-muted text-foreground"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <Icon className="h-4 w-4" aria-hidden />
+                  {label}
+                </button>
+              ))}
+            </div>
 
-          <details className="group">
-            <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">
-              Or create a task manually (any git URL)
-            </summary>
-            <Card className="mt-3">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Plus className="h-4 w-4" /> New task
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleCreate} className="space-y-4">
-                  {formError && <ErrorAlert message={formError} />}
-                  <div>
-                    <Label htmlFor="repo_url">Repository URL</Label>
+            {source === "issue" ? (
+              <ImportFromIssue onCreated={created} />
+            ) : (
+              <form onSubmit={handleCreate} className="space-y-4">
+                {formError && <ErrorAlert message={formError} />}
+                <Field id="repo_url" label="Repository URL" error={fieldErrors.repo_url}>
+                  {(c) => (
                     <Input
-                      id="repo_url"
+                      {...c}
                       value={form.repo_url}
                       onChange={(e) => set("repo_url", e.target.value)}
                       placeholder="https://github.com/you/repo.git"
                       required
                     />
-                  </div>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div>
-                      <Label htmlFor="target_path">
-                        Target file (optional)
-                      </Label>
+                  )}
+                </Field>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field
+                    id="target_path"
+                    label="Target file (optional)"
+                    hint="Leave empty to let the agent find it."
+                    error={fieldErrors.target_path}
+                  >
+                    {(c) => (
                       <Input
-                        id="target_path"
+                        {...c}
                         value={form.target_path}
                         onChange={(e) => set("target_path", e.target.value)}
-                        placeholder="empty = let the agent find it"
+                        placeholder="src/module.py"
                       />
-                    </div>
-                    <div>
-                      <Label htmlFor="base_commit">
-                        Base commit (optional)
-                      </Label>
+                    )}
+                  </Field>
+                  <Field
+                    id="base_commit"
+                    label="Base commit (optional)"
+                    hint="HEAD if empty."
+                    error={fieldErrors.base_commit}
+                  >
+                    {(c) => (
                       <Input
-                        id="base_commit"
+                        {...c}
                         value={form.base_commit}
                         onChange={(e) => set("base_commit", e.target.value)}
-                        placeholder="HEAD if empty"
+                        placeholder="5eec58f"
                       />
-                    </div>
-                  </div>
-                  <div>
-                    <Label htmlFor="test_command">Test command</Label>
+                    )}
+                  </Field>
+                </div>
+                <Field id="test_command" label="Test command" error={fieldErrors.test_command}>
+                  {(c) => (
                     <Input
-                      id="test_command"
+                      {...c}
                       value={form.test_command}
                       onChange={(e) => set("test_command", e.target.value)}
                       placeholder="python -m unittest test_calculator"
                       required
                     />
-                  </div>
-                  <div>
-                    <Label htmlFor="description">Description (optional)</Label>
+                  )}
+                </Field>
+                <Field
+                  id="description"
+                  label="Description (optional)"
+                  error={fieldErrors.description}
+                >
+                  {(c) => (
                     <Textarea
-                      id="description"
+                      {...c}
                       value={form.description}
                       onChange={(e) => set("description", e.target.value)}
                       placeholder="What should the agent fix?"
                     />
-                  </div>
-                  <Button type="submit" disabled={creating}>
-                    {creating && <Spinner />}
-                    Create task
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          </details>
-        </>
+                  )}
+                </Field>
+                <Button type="submit" disabled={creating}>
+                  {creating && <Spinner />}
+                  Create task
+                </Button>
+              </form>
+            )}
+          </CardContent>
+        </Card>
       )}
 
-      <section>
-        {error && <ErrorAlert message={error} className="mb-4" />}
+      <section aria-label="Tasks" className="space-y-3">
+        {error && (
+          <div className="space-y-3">
+            <ErrorAlert message={error} />
+            <Button variant="outline" onClick={load}>
+              Try again
+            </Button>
+          </div>
+        )}
         {tasks === null && !error ? (
-          <div className="flex justify-center py-12 text-muted-foreground">
-            <Spinner className="mr-2" /> Loading tasks…
-          </div>
+          <ListSkeleton label="Loading tasks" />
         ) : tasks && tasks.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border py-12 text-center text-muted-foreground">
-            <Bot className="h-8 w-8" />
-            <p>No tasks yet. Create one above to run the agent.</p>
-          </div>
+          <EmptyState
+            icon={Bot}
+            title="No tasks yet"
+            description={
+              demoMode
+                ? "The showcase data hasn't loaded yet."
+                : "Create a task from a GitHub issue to run the agent on it."
+            }
+            action={
+              !demoMode && (
+                <Button onClick={() => setCreatingOpen(true)}>
+                  <Plus className="h-4 w-4" aria-hidden /> New task
+                </Button>
+              )
+            }
+          />
         ) : (
           <ul className="space-y-3">
             {tasks?.map((task) => (
               <li key={task.id}>
-                <Link href={`/tasks/${task.id}`}>
-                  <Card className="transition-colors hover:border-primary">
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="min-w-0">
-                          <p className="truncate font-medium">
-                            {task.repo_full_name ?? task.repo_url}
-                            {task.issue_number && (
-                              <span className="text-muted-foreground">
-                                {" "}
-                                #{task.issue_number} {task.issue_title}
-                              </span>
-                            )}
-                          </p>
-                          <p className="truncate font-mono text-xs text-muted-foreground">
-                            {task.target_path ?? "file: auto"} ·{" "}
-                            {task.test_command}
-                          </p>
-                        </div>
-                        <span className="shrink-0 text-xs text-muted-foreground">
-                          {formatDate(task.created_at)}
-                        </span>
+                <Link
+                  href={`/tasks/${task.id}`}
+                  className="group block rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                >
+                  <Card className="transition-colors group-hover:border-primary/60">
+                    <CardContent className="flex items-center gap-4 p-4">
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <p className="truncate text-sm text-muted-foreground">
+                          {task.repo_full_name ?? task.repo_url}
+                          {task.issue_number && ` · #${task.issue_number}`}
+                        </p>
+                        <p className="line-clamp-2 font-medium">
+                          {task.issue_title ?? task.description ?? "Untitled task"}
+                        </p>
+                        <p className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                          <span className="font-mono">{task.target_path ?? "file: auto"}</span>
+                          <span className="max-w-full truncate font-mono">{task.test_command}</span>
+                          <span>{formatDate(task.created_at)}</span>
+                        </p>
                       </div>
+                      <ChevronRight
+                        className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+                        aria-hidden
+                      />
                     </CardContent>
                   </Card>
                 </Link>
