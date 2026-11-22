@@ -29,6 +29,7 @@ USER appuser
 EXPOSE 8000
 
 # Apply migrations (a failure stops the container), load the bundled showcase
-# data if it changed (DEMO_MODE only; never blocks startup), then serve.
+# data if it changed (DEMO_MODE only; never blocks startup), create the
+# BOOTSTRAP_USER_EMAIL account if set and missing (never blocks startup), then serve.
 # Hosts like Render inject $PORT.
-CMD ["sh", "-c", "alembic upgrade head && (python -m scripts.showcase autoload || true) && exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["sh", "-c", "alembic upgrade head && (python -m scripts.showcase autoload || true) && (python -m scripts.bootstrap_user || true) && exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

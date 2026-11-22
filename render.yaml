@@ -24,3 +24,19 @@ services:
         sync: false
       - key: CORS_ORIGINS       # your Vercel URL, e.g. https://devpilot.vercel.app
         sync: false
+      # Trust X-Forwarded-For from Render's proxy so per-IP rate limits see the
+      # real client (uvicorn otherwise only trusts 127.0.0.1). Safe only because
+      # Render's proxy is the sole way in.
+      - key: FORWARDED_ALLOW_IPS
+        value: "*"
+      # Password reset (docs/password-reset.md)
+      - key: FRONTEND_URL       # the Vercel URL; reset links point here
+        sync: false
+      - key: EMAIL_BACKEND
+        value: resend
+      - key: EMAIL_FROM         # e.g. DevPilot <onboarding@resend.dev>
+        sync: false
+      - key: RESEND_API_KEY     # secret: Resend API key with sending access
+        sync: false
+      - key: BOOTSTRAP_USER_EMAIL  # optional: your account (set its password via reset)
+        sync: false
