@@ -1,6 +1,6 @@
 # DevPilot — Progress Report
 
-**As of:** 2026-10-22
+**As of:** 2026-11-22
 **Roadmap authority:** [PLAN.md](PLAN.md) (9 phases). This file tracks progress against those phases; it does not define them.
 
 ## Summary
@@ -11,13 +11,13 @@ plan → code → test with a bounded repair loop → review → human approval 
 runs in the background, checkpoints every step to Postgres, streams its progress to
 the browser over SSE, and is capped on attempts, LLM calls, tokens and time.
 
-**The Phase 7 headline number is being produced unattended** (since 2026-10-22, 06:16 IST).
-A systemd user service on the owner's laptop generates the remaining SWE-bench patches
-(paced by Groq's 200k tokens/day — about 3 days), then scores every patch in **GitHub
-Actions** (the laptop has no room for the per-instance Docker images), then publishes the
-report, the README numbers, the showcase data (which the deployed API loads on its own) and a
-fresh screenshot — with no one at the keyboard. CI scoring was validated first: it reproduced
-the local verdicts exactly. See "SWE-bench pipeline" below.
+**The Phase 7 headline run is complete** (published by the unattended pipeline): SWE-bench
+Lite, 20 seeded instances, `gpt-oss-120b` on Groq, scored by the official harness in GitHub
+Actions — **RAG, issue only: 4/20 (20%, 95% CI 8–42%)**; oracle file: 7/20; oracle file + RAG:
+4/20; gold patch: 20/20. See [eval/phase7-lite-s20-seed7.md](eval/phase7-lite-s20-seed7.md).
+
+**Approved addition (2026-11-22, outside the 9 phases): password reset + a UI/UX pass.**
+See "Password reset and UI/UX pass" below.
 
 ## Progress against PLAN.md phases
 
@@ -25,7 +25,7 @@ the local verdicts exactly. See "SWE-bench pipeline" below.
 |---|---|---|---|
 | 1 | Finish backend foundation | ✅ Done | CRUD API, Ruff green, migrations, Docker Compose |
 | 2 | **Walking skeleton (agent loop)** | ✅ Done | Groq + Docker sandbox + real PR; 64 tests |
-| 3 | Frontend + light auth | ✅ Done | Auth + projects + agent UI (create task, run, view diff/events, approve→PR). Live run progress over SSE (added 2026-10-22; polling fallback) |
+| 3 | Frontend + light auth | ✅ Done | Auth + projects + agent UI (create task, run, view diff/events, approve→PR). Live run progress over SSE (added 2026-10-22; polling fallback). Forgot/reset password + UI/UX redesign added 2026-11-22 (approved addition) |
 | 4 | Real GitHub integration | ✅ Done | List repos/issues/tree, import issue → task pinned to (repo, branch, SHA), PR via REST with `Fixes #N`; 91 backend tests. Proven live: devpilot-demo issue #2 → PR #3 |
 | 5 | LangGraph agent | ✅ Done | Graph + Postgres checkpoints + interrupt-based approval, background runs, cancel/resume, budgets; 103 backend tests; proven live incl. resume across a server restart |
 | 6 | Repository RAG | ✅ Done | pgvector + FTS hybrid retrieval, file localization; smoke eval: root-cause localization 5/5 with RAG vs 2/5 without ([eval/phase6-rag.md](eval/phase6-rag.md)) |
@@ -120,16 +120,38 @@ the local verdicts exactly. See "SWE-bench pipeline" below.
 - Tests: backend 241 passed (ci_score 6, pipeline 18 incl. real git against a bare repo with a
   push race, evals +8, showcase +4); web 29; lint/tsc/build green; CI green.
 
-## Immediate next steps
-Nothing needs a human for the benchmark. To watch it:
-`tail -f ~/.cache/devpilot/swebench/pipeline.log`, `systemctl --user status devpilot-benchmark`,
-and the `[automated]` commits on GitHub. To stop it: `systemctl --user disable --now devpilot-benchmark`.
+## Password reset and UI/UX pass (approved addition, 2026-11-22)
+Not in PLAN.md; added at the owner's request. Phase order unchanged.
+- **Password reset** — design and reasoning in [password-reset.md](password-reset.md).
+  `POST /auth/forgot-password` (generic 202, per-IP + per-email limits, email sent after the
+  response), `POST /auth/reset-password` (hashed 256-bit single-use tokens, 30-min expiry, row
+  lock, other links invalidated). `users.token_version` + JWT `ver` claim: a reset ends every
+  existing session. Email via a small interface (console for dev, Resend for production).
+  Audit events `user.password_reset.requested/completed`. Showcase mode allows the reset pair;
+  optional `BOOTSTRAP_USER_EMAIL` creates the owner's account on the showcase, set up through
+  the reset flow. Migration `6f598761bda0` (table `password_reset_tokens`, column
+  `users.token_version`), checked upgrade → downgrade → upgrade → `alembic check` on a fresh DB.
+- **UI/UX** — one design system on the existing Tailwind tokens: status text colors at ≥4.5:1
+  (were 2.1–2.9:1), system/light/dark toggle, Field (ARIA-wired errors/hints), PasswordInput,
+  toasts, native `<dialog>` confirm, skeleton/empty/error states, ButtonLink. App shell with
+  a mobile menu (nav overflowed at 375px before), skip link, landing page, 404/error pages,
+  per-page titles. Redesigned tasks, task detail (colored diff, timeline stepper, sticky
+  approve bar), projects (confirm dialog), benchmarks (icon results, sticky column), auth pages.
+  A signed-in `401` anywhere ends the session and the login page says why.
+- **Verified:** backend 271 tests, web 49 tests, ruff/eslint/tsc/`next build` green; a
+  Playwright run of the whole reset flow against the local stack (13 checks incl. old JWT →
+  401); a showcase-mode run on a scratch DB (bootstrap owner sets a password via reset); every
+  page at 375px and 1280px in light and dark with no horizontal overflow.
 
-1. (owner) Confirm the Neon `neondb_owner` password was reset after it was pasted in chat on
+## Immediate next steps
+1. (owner) Before merging the password-reset PR: set the new Render env vars
+   (`FRONTEND_URL`, `EMAIL_BACKEND`, `EMAIL_FROM`, `RESEND_API_KEY`, `FORWARDED_ALLOW_IPS`,
+   optional `BOOTSTRAP_USER_EMAIL`) — see [DEPLOY.md](DEPLOY.md#password-reset-email-optional).
+2. (owner) Confirm the Neon `neondb_owner` password was reset after it was pasted in chat on
    2026-10-02 — it needs the Neon and Render dashboards (reset in Neon, paste the new URL into
    Render's `DATABASE_URL`); an agent has no access to either.
-2. When the pipeline finishes (≈3 days): check the final commit, the README numbers and the live
-   Benchmarks page; then update this file and memory.md with the headline result.
+3. Optional follow-ups: purge used/expired reset tokens periodically; "password changed"
+   notification email; breached-password check.
 
 ## Limitations
 Single-file agent (the task may name the file, or the agent localizes one). Runs execute

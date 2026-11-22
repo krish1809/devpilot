@@ -1,6 +1,6 @@
 # DevPilot — Design System
 
-**Last updated:** 2026-09-28
+**Last updated:** 2026-11-22
 **Applies to:** the Next.js frontend (Phase 2) and any dashboards/docs pages.
 
 > Visual language: a calm, precise **developer tool** — think Linear/Vercel/GitHub. Dark-first, high legibility, generous whitespace, restrained color used to signal state (plan/validation/approval). Built on Tailwind CSS + shadcn/ui, so tokens below map to CSS variables and Tailwind theme extensions.
@@ -35,6 +35,12 @@ Defined as HSL CSS variables (shadcn/ui convention). Ship **dark as the default*
 | `--warning` | `38 92% 50%` | Awaiting approval, review needed |
 | `--destructive` | `0 72% 51%` | Failed, rejected, delete |
 | `--info` | `199 89% 48%` | Planning / running / neutral status |
+
+**Status text tokens (added 2026-11-22):** the fills above are too light for text on light
+backgrounds (2.1–2.9:1), so each has a `-fg` variant for text and icons — `--success-fg`,
+`--warning-fg`, `--destructive-fg`, `--info-fg` (Tailwind `text-success-fg` etc.). Measured
+on their 15% tinted badge backgrounds: ≥5.3:1 in light, ≥5.7:1 in dark. In dark mode
+`--primary-foreground` is near-black (white on the dark-mode blue is 3.6:1).
 
 **Rules:** color signals meaning, never decoration. Every text/background pair must meet **WCAG AA (≥4.5:1)** for body, ≥3:1 for large text. Don't rely on color alone — pair status colors with an icon and a label.
 
@@ -80,6 +86,22 @@ Weights: 400 body, 500 medium (labels/buttons), 600 semibold (headings). Avoid 7
 - Icons: one set (Lucide, ships with shadcn/ui).
 - Test both themes; never hardcode hex in components — use the tokens above.
 
-## 6. Implementation notes
+## 6. What's implemented (apps/web, 2026-11-22)
+- Theme: follows the OS by default; a System/Light/Dark toggle sets `<html data-theme>`
+  (saved in localStorage, applied by an inline script before paint). Light is not opt-in as
+  §1 originally said — the app respects the OS preference.
+- Primitives in `components/ui/`: `Button`/`ButtonLink` (no `<a><button>` nesting), `Field`
+  (label above, hint + error below, `aria-invalid`/`aria-describedby`), `PasswordInput`
+  (show/hide), `Alert` (error/success/info/warning), `StatusBadge` (icon + label), toasts
+  (`useToast`, polite live region), `ConfirmDialog` (native `<dialog>`), `PageHeader`,
+  `EmptyState`, `Skeleton`/`ListSkeleton`, `PageLoading`.
+- Shell: sticky header with active-page links (`aria-current`), a menu button below `md`,
+  skip-to-content link, one container width (`max-w-page` = 72rem), footer.
+- Run views: `DiffView` (tinted +/- lines, counts, screen-reader prefixes), `Timeline`
+  (stepper), `Disclosure` (consistent `<details>`).
+- Horizontal scroll containers must be `relative`, or absolutely positioned `sr-only` text
+  inside them escapes the clip and widens the page on mobile.
+
+## 7. Implementation notes
 - Define tokens in `globals.css` under `:root` and `.dark`; extend `tailwind.config.ts` to read them.
 - Keep a single source of truth for tokens; components reference semantic tokens, not raw colors.

@@ -1,20 +1,42 @@
 # DevPilot — Working Memory
 
-**Last updated:** 2026-10-22
+**Last updated:** 2026-11-22
 **Roadmap authority:** [docs/PLAN.md](docs/PLAN.md) (9 phases). Ignore old phase numbers.
 
 **Current position:** All 9 phases built. Live: **https://devpilot-pied.vercel.app** (Vercel, `apps/web`) →
 API **https://devpilot-api-gr7a.onrender.com** (Render free, DEMO_MODE) → Neon Postgres.
-**The Phase 7 headline run is in progress, unattended:** systemd user service `devpilot-benchmark` (started
-2026-10-22 06:16 IST) generates the v2 patches locally (Groq 200k tokens/day → ≈3 days), then scores them in
-**GitHub Actions**, then publishes report + README numbers + showcase data + screenshot by itself. Nothing for a
-human to do except confirm the Neon password reset (see Phase 9). When it's done, record the headline result here.
-2026-10-22 sessions: SSE run streaming; eval disk guard (size-aware); CI scoring + unattended pipeline; showcase
-autoload; safe disk cleanup (+1.99 GB). Backend **241** tests, web **29**; lint/tsc/build/CI green.
+**Phase 7 headline is published** (the unattended pipeline finished; `devpilot-benchmark` is disabled, marker
+`~/.cache/devpilot/swebench/pipeline-lite-s20-seed7.done`): SWE-bench Lite 20 instances — RAG 4/20 (20%,
+CI 8–42%), oracle-file 7/20, oracle-file+RAG 4/20, gold 20/20.
+**2026-11-22 (approved addition, outside PLAN.md):** forgot/reset password + UI/UX redesign on branch
+`feature/password-reset-and-ui` (PR open, not merged — owner merges after setting Render env vars). Backend
+**271** tests, web **49**; lint/tsc/build green. Dev DB migrated to head `6f598761bda0`.
 
 > Update this at the end of every session. Fuller tracking: [docs/PROGRESS.md](docs/PROGRESS.md).
 
 ---
+
+## 🆕 Password reset + UI/UX pass (2026-11-22, approved addition)
+- Design + reasoning: [docs/password-reset.md](docs/password-reset.md). Code: `app/services/password_reset.py`,
+  `app/api/auth.py` (`/auth/forgot-password`, `/auth/reset-password`), `app/integrations/email.py`
+  (console | resend | memory), `app/api/deps.py` (`ver` claim vs `users.token_version`), `scripts/bootstrap_user.py`.
+- Migration `6f598761bda0`: `password_reset_tokens` (sha256 `token_hash` unique, `expires_at`, `used_at`, FK
+  cascade) + `users.token_version` (server default 0 → existing sessions survived the deploy).
+- Rate limiter now has `check_rate_limit(key, …)` for non-IP keys (per-email, hashed). Forgot: 5/15 min/IP,
+  3/h/email. Reset: 10/min/IP.
+- New settings: `FRONTEND_URL`, `EMAIL_BACKEND`, `EMAIL_FROM`, `RESEND_API_KEY`, `PASSWORD_RESET_*`,
+  `BOOTSTRAP_USER_EMAIL`; Render also needs `FORWARDED_ALLOW_IPS=*` (pre-existing bug: behind Render's proxy
+  every client had the proxy's IP, so per-IP limits were global). `render.yaml` declares them.
+- ⚠️ Console email backend prints reset links to stdout in dev (intended) and prints nothing when
+  `ENVIRONMENT=production`. Demo user (`demo@devpilot.dev`) is never sent a link.
+- Web: design tokens with `-fg` status colors (AA), theme toggle, `components/ui/*` primitives, toasts,
+  `<dialog>` confirm, app shell with mobile menu, landing page, redesigned auth/tasks/task detail/projects/evals,
+  global 401 → session ended. `UNAUTHORIZED_EVENT` in `lib/api.ts`.
+- Gotchas: React StrictMode runs effects twice in dev — the reset page guards its one-time hash read with a ref;
+  `sr-only` text inside `overflow-x-auto` needs a `relative` container or it widens the page on mobile.
+- Verified 2026-11-22: Playwright e2e on the local stack (API :8011, web :3011; 13 checks) and a showcase-mode
+  run on a scratch DB `devpilot_uicheck` (dropped afterwards). Dev DB gained test users
+  `e2e-reset-<ts>@example.com` (local only).
 
 ## ✅ Phase 1 — Backend foundation (done)
 - FastAPI + PostgreSQL + Alembic; Project CRUD (`apps/api/app/...`), `/health`

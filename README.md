@@ -130,7 +130,8 @@ flowchart LR
 | Retrieval | pgvector, Postgres full-text search, fastembed (`BAAI/bge-small-en-v1.5`, ONNX) |
 | Tools | MCP Python SDK 2.x (stdio), Docker sandbox, git, GitHub REST |
 | Frontend | Next.js 14, TypeScript, Tailwind |
-| Quality | pytest (≈200 tests incl. a real Postgres/pgvector test DB), Vitest + Testing Library, Ruff, ESLint, GitHub Actions |
+| Accounts | JWT auth with per-user session revocation; [password reset](docs/password-reset.md) with hashed single-use tokens, generic responses and rate limits; email via Resend |
+| Quality | pytest (≈270 tests incl. a real Postgres/pgvector test DB), Vitest + Testing Library, Ruff, ESLint, GitHub Actions |
 | Evaluation | SWE-bench Lite + the official `swebench` harness |
 
 ## Run it locally
@@ -152,6 +153,8 @@ cd ../web && npm install && npm run dev       # http://localhost:3000
 
 Sign up, open **Tasks**, import a GitHub issue (or point at any git URL), press **Run agent**,
 review, approve. Checks: `make check` (backend) · `npm run lint && npm test && npm run build` (web).
+Locally, password-reset emails go to the API's terminal (`EMAIL_BACKEND=console`): use
+*Forgot password?* and open the printed link.
 
 Public deployment is a read-only showcase (`DEMO_MODE=true`) — see [docs/DEPLOY.md](docs/DEPLOY.md).
 

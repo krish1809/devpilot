@@ -31,6 +31,10 @@ provider's current terms).
    - `DATABASE_URL` — the Neon connection string from step 1 (as copied; the API adapts the
      `postgresql://` prefix itself).
    - `CORS_ORIGINS` — leave as `http://localhost:3000` for now; you'll set the Vercel URL in step 4.
+   - `FRONTEND_URL` — the Vercel URL (reset links point here); set it after step 4 if you
+     don't know it yet.
+   - `EMAIL_FROM`, `RESEND_API_KEY`, `BOOTSTRAP_USER_EMAIL` — see "Password reset email" below
+     (optional: without them the showcase works, but reset emails aren't sent).
 4. Apply. The first build takes several minutes. On start the container runs
    `alembic upgrade head` (creating all tables in Neon), loads the showcase data (step 3), and
    then serves.
@@ -78,6 +82,27 @@ unset DATABASE_URL
    (no trailing slash). Deploy.
 4. Copy the site URL (e.g. `https://devpilot-xxxx.vercel.app`), then in **Render → devpilot-api →
    Environment** set `CORS_ORIGINS` to exactly that URL and save (Render redeploys).
+
+## Password reset email (optional)
+
+The API sends reset links through [Resend](https://resend.com) over HTTPS (Render's free
+plan blocks outbound SMTP). Free tier at the time of writing: ~3,000 emails/month — check
+current limits.
+
+1. Sign up at Resend and create an API key with **Sending access** only.
+2. Without a verified domain, Resend only sends *from* `onboarding@resend.dev` *to the
+   address you signed up with* — enough for the owner's own account. (To email anyone,
+   verify a domain you own and use an address on it in `EMAIL_FROM`.)
+3. In **Render → devpilot-api → Environment** set:
+   `EMAIL_BACKEND=resend`, `EMAIL_FROM=DevPilot <onboarding@resend.dev>`,
+   `RESEND_API_KEY=<key>`, `FRONTEND_URL=https://<your-site>.vercel.app`,
+   `FORWARDED_ALLOW_IPS=*`, and `BOOTSTRAP_USER_EMAIL=<your Resend sign-up email>`.
+4. After the redeploy, open the site → *Log in* → *Forgot password?* → your email. Set a
+   password from the link; you can now log in as yourself (read-only, like every showcase
+   session). Showcase mode allows only the two reset endpoints besides login.
+
+If `EMAIL_BACKEND` is left as `console` in production, no email is sent and nothing is
+printed — the API logs a warning instead.
 
 ## 5. Check the live site
 
