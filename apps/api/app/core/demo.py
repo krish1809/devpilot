@@ -4,8 +4,10 @@ Free hosting can't run the agent's Docker sandbox, so a public deployment is a
 read-only showcase of real runs and benchmark results recorded locally. With
 ``DEMO_MODE=true``:
 
-- every state-changing request is refused (403) except logging in, so no one
-  can start agent runs, approve PRs, register, or create data;
+- every state-changing request is refused (403) except logging in and the
+  password-reset pair, so no one can start agent runs, approve PRs, register,
+  or create data (a reset only changes the caller's own password, and the demo
+  user is excluded from resets);
 - the GitHub endpoints are disabled entirely (the server holds no token);
 - ``POST /api/v1/auth/demo`` signs visitors in as a read-only demo user, so
   nobody needs an account to look around.
@@ -27,7 +29,12 @@ from app.models.user import User
 from app.services.user import get_user_by_email
 
 _SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
-_ALLOWED_WRITES = {"/api/v1/auth/login", "/api/v1/auth/demo"}
+_ALLOWED_WRITES = {
+    "/api/v1/auth/login",
+    "/api/v1/auth/demo",
+    "/api/v1/auth/forgot-password",
+    "/api/v1/auth/reset-password",
+}
 _BLOCKED_PREFIXES = ("/api/v1/github",)
 
 

@@ -46,6 +46,12 @@ def get_current_user(
     if user is None or not user.is_active:
         raise _CREDENTIALS_EXCEPTION
 
+    # Tokens issued before the last password reset carry an older version.
+    # Tokens from before `ver` existed count as version 0.
+    version = payload.get("ver", 0)
+    if not isinstance(version, int) or version != user.token_version:
+        raise _CREDENTIALS_EXCEPTION
+
     return user
 
 

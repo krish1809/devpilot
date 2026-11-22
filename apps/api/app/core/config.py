@@ -1,5 +1,6 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -27,9 +28,30 @@ class Settings(BaseSettings):
     auth_rate_limit_max: int = 10
     auth_rate_limit_window_seconds: int = 60
 
+    # Password reset (see docs/password-reset.md). Reset links point at the web
+    # app, so its public URL is configuration, never hard-coded.
+    frontend_url: str = "http://localhost:3000"
+    password_reset_token_ttl_minutes: int = 30
+    password_reset_ip_limit_max: int = 5
+    password_reset_ip_limit_window_seconds: int = 15 * 60
+    password_reset_email_limit_max: int = 3
+    password_reset_email_limit_window_seconds: int = 60 * 60
+
+    # Outgoing email. "console" prints messages to stdout (local development);
+    # "resend" sends through the Resend HTTPS API (production). In production
+    # the console backend refuses to print reset links (see app/integrations/email.py).
+    email_backend: Literal["console", "resend"] = "console"
+    email_from: str = "DevPilot <dev@localhost>"
+    resend_api_key: str = ""
+    email_timeout_seconds: int = 10
+
     # Public read-only showcase (Phase 9): see app/core/demo.py.
     demo_mode: bool = False
     demo_user_email: str = "demo@devpilot.dev"
+    # Optional: an account created on startup (with an unusable random password)
+    # so the owner can sign in to a deployment where registration is off — they
+    # set its password through the forgot-password flow. See scripts/bootstrap_user.py.
+    bootstrap_user_email: str = ""
 
     # Comma-separated list of allowed browser origins for CORS.
     cors_origins: str = "http://localhost:3000"
@@ -88,6 +110,11 @@ class Settings(BaseSettings):
             if v.startswith(prefix):
                 return "postgresql+psycopg://" + v[len(prefix) :]
         return v
+
+    @field_validator("frontend_url")
+    @classmethod
+    def _strip_trailing_slash(cls, v: str) -> str:
+        return v.rstrip("/")
 
     model_config = SettingsConfigDict(
         env_file=str(_ENV_FILE),

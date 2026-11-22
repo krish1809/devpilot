@@ -2,6 +2,7 @@ from app.models.agent_run import AgentRun, Approval, PullRequest, RunEvent, RunS
 from app.models.app_state import AppState
 from app.models.audit import AuditLog
 from app.models.eval import EvalResult, EvalRun
+from app.models.password_reset import PasswordResetToken
 from app.models.project import Project
 from app.models.rag import RepoChunk, RepoIndex
 from app.models.task import Task
@@ -16,6 +17,7 @@ __all__ = [
     "EvalResult",
     "EvalRun",
     "LlmCall",
+    "PasswordResetToken",
     "Project",
     "PullRequest",
     "RepoChunk",
