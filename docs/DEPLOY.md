@@ -85,24 +85,40 @@ unset DATABASE_URL
 
 ## Password reset email (optional)
 
-The API sends reset links through [Resend](https://resend.com) over HTTPS (Render's free
-plan blocks outbound SMTP). Free tier at the time of writing: ~3,000 emails/month — check
-current limits.
+The API sends reset links through [Resend](https://resend.com) over HTTPS. Render's free plan
+blocks outbound SMTP ports (25/465/587) since September 2025, so Gmail SMTP won't work there.
 
-1. Sign up at Resend and create an API key with **Sending access** only.
-2. Without a verified domain, Resend only sends *from* `onboarding@resend.dev` *to the
-   address you signed up with* — enough for the owner's own account. (To email anyone,
-   verify a domain you own and use an address on it in `EMAIL_FROM`.)
+**You need a domain you own.** Resend's test sender `onboarding@resend.dev` only delivers to the
+address you signed up to Resend with; every other recipient is rejected (HTTP 403, "You can
+only send testing emails to your own email address"). That's why reset emails "never arrive".
+
+1. Sign up at Resend → **Domains → Add domain** (a subdomain like `mail.yourdomain.com` is
+   fine). Add the DNS records it shows (SPF/DKIM TXT + MX) at your DNS provider and wait for
+   **Verified**.
+2. **API Keys → Create** with **Sending access** only (optionally restricted to that domain).
 3. In **Render → devpilot-api → Environment** set:
-   `EMAIL_BACKEND=resend`, `EMAIL_FROM=DevPilot <onboarding@resend.dev>`,
-   `RESEND_API_KEY=<key>`, `FRONTEND_URL=https://<your-site>.vercel.app`,
-   `FORWARDED_ALLOW_IPS=*`, and `BOOTSTRAP_USER_EMAIL=<your Resend sign-up email>`.
-4. After the redeploy, open the site → *Log in* → *Forgot password?* → your email. Set a
-   password from the link; you can now log in as yourself (read-only, like every showcase
-   session). Showcase mode allows only the two reset endpoints besides login.
+   `EMAIL_BACKEND=resend`, `EMAIL_FROM=DevPilot <noreply@yourdomain.com>` (on the verified
+   domain), `RESEND_API_KEY=<key>`, `FRONTEND_URL=https://<your-site>.vercel.app`,
+   `FORWARDED_ALLOW_IPS=*`, and optionally `BOOTSTRAP_USER_EMAIL=<your email>` (creates your
+   account on the showcase, where sign-up is off).
+4. After the redeploy, check the **Logs**: a misconfiguration is logged at startup as
+   `Email is misconfigured: …`. Then test delivery from **Render → Shell**:
+   `python -m scripts.send_test_email you@example.com`. It prints the provider's exact error
+   if sending fails.
+5. Open the site → *Log in* → *Forgot password?* → your email → set a password from the link.
 
-If `EMAIL_BACKEND` is left as `console` in production, no email is sent and nothing is
-printed — the API logs a warning instead.
+Notes:
+- `forgot-password` answers the same whether or not the account exists, so the page can't tell
+  you that nothing was sent. On the showcase, your account only exists if you set
+  `BOOTSTRAP_USER_EMAIL` or signed in with Google once.
+- If `EMAIL_BACKEND` is left as `console` in production, no email is sent and nothing is
+  printed; the API logs a warning instead.
+
+## Sign in with Google (optional)
+
+Create an OAuth client ID (Web application) with your Vercel URL and `http://localhost:3000` as
+authorized JavaScript origins, then set `GOOGLE_CLIENT_ID` on Render. Steps and design:
+[google-sign-in.md](google-sign-in.md).
 
 ## 5. Check the live site
 
@@ -117,4 +133,6 @@ Lite results. If the first load is slow, that's Render waking the free service.
 - **Render deploy fails at `alembic upgrade head`**: the `DATABASE_URL` is wrong or the Neon
   project is suspended (open it in the Neon console to wake it).
 - **Empty pages after logging in to the demo**: step 3 wasn't run against the same database.
-- Showcase mode refuses every write (403) except logging in — that's intended.
+- Showcase mode refuses every write (403) except signing in and password reset — that's intended.
+- **Reset email doesn't arrive**: see the *Password reset email* section. Usually `EMAIL_FROM`
+  is still `onboarding@resend.dev`, or the account doesn't exist on the showcase.

@@ -124,6 +124,24 @@ on a real domain, and whoever controls that mailbox would otherwise get a takeov
 Inactive accounts get nothing. The read-only showcase allows exactly the two reset endpoints,
 and they can only change the caller's own password.
 
+## Delivery: why emails didn't arrive, and how it's checked now (2026-11-23)
+
+After the first deploy the endpoints worked, but no email arrived. Three causes stacked up:
+1. `EMAIL_FROM` was Resend's test sender `onboarding@resend.dev`, which only delivers to the
+   Resend account owner; any other recipient gets a 403. Production now needs a sender on a
+   domain verified in Resend ([DEPLOY.md](DEPLOY.md)).
+2. On the showcase, sign-up is off, so an address with no account correctly gets nothing.
+   By design, the response can't say so.
+3. Failures were logged only as "HTTP 403", without the reason.
+
+The fixes:
+- Provider errors now carry Resend's own message. URLs and `token=` values are redacted first,
+  so a reset link can never reach the logs, even if the provider echoes the request back.
+- `email_config_problems()` is logged at startup. It flags a missing key, the `@resend.dev`
+  sender, and the console backend in production.
+- `python -m scripts.send_test_email you@example.com` sends one email through the configured
+  backend and prints the result.
+
 ## Bootstrap account (showcase deployments)
 
 Production runs as a read-only showcase where sign-up is off. `BOOTSTRAP_USER_EMAIL` makes

@@ -143,6 +143,26 @@ Not in PLAN.md; added at the owner's request. Phase order unchanged.
   401); a showcase-mode run on a scratch DB (bootstrap owner sets a password via reset); every
   page at 375px and 1280px in light and dark with no horizontal overflow.
 
+## Google sign-in, email delivery fix, dark redesign (approved addition, 2026-11-23)
+Not in PLAN.md; added at the owner's request. Phase order unchanged.
+- **Email delivery** — on the live site reset emails didn't arrive (Resend's test sender only
+  reaches the account owner). Provider errors now carry the reason (links redacted), startup
+  logs misconfiguration, and `scripts/send_test_email.py` checks delivery. Production uses a
+  Resend-verified domain.
+- **Sign in with Google** — `POST /auth/google` verifies Google's ID token in the API (RS256 via
+  JWKS, audience, issuer, expiry, verified email), then signs in, links or creates the account
+  and issues the usual JWT. Migration `c8e9ed9f400e` (`users.google_sub`). Web: Google's
+  official button, shown only when `/config` publishes a client ID.
+  See [google-sign-in.md](google-sign-in.md).
+- **Showcase** — any signed-in account reads the recorded runs; the "Sign up" link is hidden
+  where sign-up is off.
+- **Redesign** — dark-first visual identity, product-preview landing page, split auth pages,
+  run pipeline stepper, metric and score tiles.
+- **Verified:** backend 292 tests, ruff check/format clean; web 57 tests, eslint, tsc,
+  `next build` green; migration upgrade → downgrade → upgrade → `alembic check` on a scratch DB;
+  Playwright screenshots of every page in showcase mode at 375px and 1280px: no horizontal
+  overflow, no page errors.
+
 ## Immediate next steps
 1. (owner) Before merging the password-reset PR: set the new Render env vars
    (`FRONTEND_URL`, `EMAIL_BACKEND`, `EMAIL_FROM`, `RESEND_API_KEY`, `FORWARDED_ALLOW_IPS`,

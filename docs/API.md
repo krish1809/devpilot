@@ -14,10 +14,13 @@ Versioned prefix: `/api/v1`
 | POST | `/api/v1/auth/register` | Register; `201`, or `409` if email taken, `422` on invalid input |
 | POST | `/api/v1/auth/login` | Log in; `200` with `{access_token, token_type}`, or `401` |
 | GET | `/api/v1/auth/me` | Current user; `200` with a valid bearer token, else `401` |
+| POST | `/api/v1/auth/google` | `{credential}` (a Google ID token) → `200 {access_token, token_type}`. The API verifies the token (RS256 signature against Google's keys, audience = `GOOGLE_CLIENT_ID`, issuer, expiry, `email_verified`), then signs in by Google ID, links an existing account by verified email, or creates one. `401 "Google sign-in failed…"` for any bad token; `404` when `GOOGLE_CLIENT_ID` is unset. See [google-sign-in.md](google-sign-in.md) |
 | POST | `/api/v1/auth/forgot-password` | `{email}` → **always** `202 {"detail": "If an account exists for that email, we've sent a link to reset its password."}`, whether or not the account exists; the email (if any) is sent after the response. `429` when rate-limited |
 | POST | `/api/v1/auth/reset-password` | `{token, new_password}` → `200 {"detail": …}`; `400 "This reset link is invalid or has expired…"` for an unknown, expired or already-used token (one message for all three); `422` if `new_password` breaks the password rules (the token stays usable) |
 
-`register`, `login` and `reset-password` are rate-limited per client IP (10/min);
+`GET /api/v1/config` (public) returns `{demo_mode, registration_open, google_client_id}`.
+
+`register`, `login`, `google` and `reset-password` are rate-limited per client IP (10/min);
 `forgot-password` per IP (5 per 15 min) **and** per email (3 per hour, applied to any address
 so it reveals nothing). Exceeding a limit returns `429` with a `Retry-After` header.
 
