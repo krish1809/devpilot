@@ -45,6 +45,12 @@ class Settings(BaseSettings):
     resend_api_key: str = ""
     email_timeout_seconds: int = 10
 
+    # "Sign in with Google" (docs/google-sign-in.md). The OAuth *client ID* from
+    # Google Cloud Console; empty turns the feature off. It's public (Google
+    # embeds it in every sign-in page), so there is no client secret here: the
+    # browser gets a Google-signed ID token and the API verifies its signature.
+    google_client_id: str = ""
+
     # Public read-only showcase (Phase 9): see app/core/demo.py.
     demo_mode: bool = False
     demo_user_email: str = "demo@devpilot.dev"

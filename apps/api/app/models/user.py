@@ -38,6 +38,14 @@ class User(Base):
         server_default="0",
     )
 
+    # Google's stable account ID (the ID token's `sub`), set when the user signs
+    # in with Google. Email addresses can change; `sub` never does.
+    google_sub: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        unique=True,
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

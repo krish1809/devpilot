@@ -34,9 +34,11 @@ services:
         sync: false
       - key: EMAIL_BACKEND
         value: resend
-      - key: EMAIL_FROM         # e.g. DevPilot <onboarding@resend.dev>
+      - key: EMAIL_FROM         # on your Resend-verified domain, e.g. DevPilot <noreply@yourdomain.com>
         sync: false
       - key: RESEND_API_KEY     # secret: Resend API key with sending access
         sync: false
       - key: BOOTSTRAP_USER_EMAIL  # optional: your account (set its password via reset)
+        sync: false
+      - key: GOOGLE_CLIENT_ID   # optional: enables "Sign in with Google" (public value)
         sync: false

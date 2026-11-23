@@ -12,12 +12,17 @@ def demo_mode(monkeypatch):  # noqa: ANN001
 
 
 def test_demo_login_is_hidden_outside_demo_mode(client: TestClient) -> None:
-    assert client.get("/api/v1/config").json() == {"demo_mode": False}
+    assert client.get("/api/v1/config").json() == {
+        "demo_mode": False,
+        "registration_open": True,
+        "google_client_id": "",
+    }
     assert client.post("/api/v1/auth/demo").status_code == 404
 
 
 def test_demo_visitors_get_a_read_only_session(client: TestClient, demo_mode) -> None:  # noqa: ANN001
-    assert client.get("/api/v1/config").json() == {"demo_mode": True}
+    config = client.get("/api/v1/config").json()
+    assert config["demo_mode"] is True and config["registration_open"] is False
     token = client.post("/api/v1/auth/demo").json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
 

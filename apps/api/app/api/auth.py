@@ -9,9 +9,11 @@ from app.core.demo import get_or_create_demo_user
 from app.core.rate_limit import check_rate_limit, rate_limiter
 from app.core.security import create_access_token
 from app.integrations.email import EmailSender, get_email_sender
+from app.integrations.google import GoogleTokenError, GoogleVerifier, get_google_verifier
 from app.models.user import User
 from app.schemas.user import (
     ForgotPasswordRequest,
+    GoogleSignInRequest,
     MessageResponse,
     ResetPasswordRequest,
     Token,
@@ -20,6 +22,7 @@ from app.schemas.user import (
     UserResponse,
 )
 from app.services import audit
+from app.services.google_auth import GoogleSignInError, sign_in_with_google
 from app.services.password_reset import (
     InvalidResetTokenError,
     issue_reset_token,
@@ -49,6 +52,7 @@ _reset_ip_limit = (
 FORGOT_PASSWORD_RESPONSE = (
     "If an account exists for that email, we've sent a link to reset its password."
 )
+GOOGLE_SIGN_IN_FAILED = "Google sign-in failed. Try again, or log in with your password."
 INVALID_RESET_TOKEN = "This reset link is invalid or has expired. Request a new one."
 
 
@@ -126,6 +130,49 @@ def demo_login(db: DbSession) -> Token:
     if not get_settings().demo_mode:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
     user = get_or_create_demo_user(db)
+    return _issue_token(user)
+
+
+@router.post(
+    "/google",
+    response_model=Token,
+    dependencies=[Depends(rate_limiter("auth:google", *_auth_limit))],
+)
+def google_sign_in(
+    payload: GoogleSignInRequest,
+    db: DbSession,
+    request: Request,
+    verifier: Annotated[GoogleVerifier, Depends(get_google_verifier)],
+) -> Token:
+    """Exchange a Google ID token for a DevPilot access token.
+
+    The API verifies the token itself (signature, audience, issuer, expiry,
+    verified email), then signs in, links, or creates the account.
+    """
+    if not get_settings().google_client_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+    ip = _client_ip(request)
+    try:
+        identity = verifier.verify(payload.credential)
+        result = sign_in_with_google(db, identity)
+    except (GoogleTokenError, GoogleSignInError) as exc:
+        # The reason goes to the audit log only; the client gets one message.
+        audit.record_event(db, audit.USER_LOGIN_FAILED, detail=f"google: {exc}", ip_address=ip)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=GOOGLE_SIGN_IN_FAILED,
+        ) from None
+
+    user = result.user
+    if result.created:
+        audit.record_event(
+            db, audit.USER_REGISTERED, user_id=user.id, detail="via Google", ip_address=ip
+        )
+    elif result.linked:
+        audit.record_event(db, audit.USER_GOOGLE_LINKED, user_id=user.id, ip_address=ip)
+    audit.record_event(
+        db, audit.USER_LOGIN_SUCCEEDED, user_id=user.id, detail="via Google", ip_address=ip
+    )
     return _issue_token(user)
 
 
