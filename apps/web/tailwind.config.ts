@@ -23,16 +23,22 @@ const config: Config = {
           foreground: "hsl(var(--primary-foreground))",
         },
         accent: "hsl(var(--accent))",
-        success: "hsl(var(--success))",
-        warning: "hsl(var(--warning))",
-        destructive: "hsl(var(--destructive))",
-        info: "hsl(var(--info))",
+        success: { DEFAULT: "hsl(var(--success))", fg: "hsl(var(--success-fg))" },
+        warning: { DEFAULT: "hsl(var(--warning))", fg: "hsl(var(--warning-fg))" },
+        destructive: {
+          DEFAULT: "hsl(var(--destructive))",
+          fg: "hsl(var(--destructive-fg))",
+        },
+        info: { DEFAULT: "hsl(var(--info))", fg: "hsl(var(--info-fg))" },
         ring: "hsl(var(--ring))",
       },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+      },
+      maxWidth: {
+        page: "72rem",
       },
       fontFamily: {
         sans: ["var(--font-sans)", "system-ui", "sans-serif"],

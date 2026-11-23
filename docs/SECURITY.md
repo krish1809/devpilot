@@ -13,6 +13,23 @@ Treat task text, GitHub issue/comment content, repository files, model output, t
 - Ignore `.env`; commit only placeholder values in `.env.example`.
 - Never put keys in prompts, frontend bundles, logs, traces, or artifacts.
 
+## Password reset
+Details and reasoning: [password-reset.md](password-reset.md). In short: one generic `202`
+for every forgot-password request (no account enumeration; email sent after the response so
+timing doesn't leak either); rate limits per IP and per email; 256-bit `secrets` tokens of
+which only the SHA-256 is stored; 30-minute expiry, single use, row lock against double
+redemption, and every other outstanding link invalidated on success; `users.token_version`
+in every JWT (`ver`), bumped on reset so all earlier sessions die; the link host comes from
+`FRONTEND_URL` (never the request's `Host`) and the token rides in the URL fragment (never in
+server logs or `Referer`); audit events without secrets; the console email backend never
+prints links in production; the shared demo user can't be reset.
+
+## Rate limits behind a proxy
+Per-IP limits use `request.client.host`. Behind a reverse proxy (Render) uvicorn only takes
+the client address from `X-Forwarded-For` when the proxy is trusted — set
+`FORWARDED_ALLOW_IPS` (Render: `*`, safe only because its proxy is the sole ingress).
+Otherwise every visitor shares the proxy's address and per-IP limits become global ones.
+
 ## Tool permissions
 Each tool needs a typed schema, explicit permission, server-side authorization, timeout, output limit, and audit record. Model output cannot authorize itself. Apply rate limits and narrow scopes.
 

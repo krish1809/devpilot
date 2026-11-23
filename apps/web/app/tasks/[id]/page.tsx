@@ -1,15 +1,28 @@
 "use client";
 
-import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, ExternalLink, Play, RotateCcw, Square } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Bot,
+  CheckCircle2,
+  ExternalLink,
+  GitPullRequest,
+  Play,
+  RotateCcw,
+  ShieldAlert,
+  Square,
+  XCircle,
+} from "lucide-react";
 
-import { ErrorAlert } from "@/components/ui/alert";
+import { DiffView } from "@/components/DiffView";
+import { Disclosure, SectionTitle, Timeline } from "@/components/RunParts";
+import { Alert, ErrorAlert } from "@/components/ui/alert";
 import { StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState, PageHeader, PageLoading, Skeleton } from "@/components/ui/page";
 import { Spinner } from "@/components/ui/spinner";
+import { useToast } from "@/components/ui/toast";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import type {
@@ -20,16 +33,25 @@ import type {
   RunTrace,
   Task,
 } from "@/lib/types";
-import { formatDate } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 
 const POLL_MS = 1500;
 
 const errMsg = (err: unknown, fallback: string) =>
   err instanceof ApiError ? err.message : fallback;
 
+const FINISHED_TOASTS: Record<string, { tone: "success" | "error" | "info"; title: string }> = {
+  validated: { tone: "success", title: "Tests pass — the patch is ready for your review" },
+  test_failed: { tone: "error", title: "The agent couldn't make the tests pass" },
+  review_failed: { tone: "error", title: "The patch was refused by the review guard" },
+  error: { tone: "error", title: "The run stopped with an error" },
+  cancelled: { tone: "info", title: "Run cancelled" },
+};
+
 export default function TaskDetailPage() {
   const { user, loading: authLoading, demoMode } = useAuth();
   const router = useRouter();
+  const toast = useToast();
   const params = useParams<{ id: string }>();
   const taskId = Number(params.id);
 
@@ -40,7 +62,7 @@ export default function TaskDetailPage() {
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [run, setRun] = useState<AgentRun | null>(null);
   const [starting, setStarting] = useState(false);
-  const [acting, setActing] = useState(false);
+  const [acting, setActing] = useState<null | "approve" | "reject" | "cancel" | "resume">(null);
   const [useRag, setUseRag] = useState(true);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -71,21 +93,27 @@ export default function TaskDetailPage() {
     if (user && Number.isFinite(taskId)) load();
   }, [user, taskId, load]);
 
+  // Toast once when a run we watched leave "running" finishes.
+  const watched = useRef<number | null>(null);
+
   // While the graph works in the background, stream its progress (SSE); fall
   // back to polling if the stream can't be opened or ends early.
   const runId = run?.id;
   const isRunning = run?.status === "running";
   useEffect(() => {
     if (!runId || !isRunning) return;
+    watched.current = runId;
     const controller = new AbortController();
     let timer: ReturnType<typeof setInterval> | undefined;
     let finished = false;
 
     const onUpdate = (next: AgentRun) => {
       setRun(next);
-      if (next.status !== "running") {
+      if (next.status !== "running" && !finished) {
         finished = true;
         loadRuns().catch(() => undefined);
+        const t = FINISHED_TOASTS[next.status];
+        if (t && watched.current === next.id) toast({ ...t, description: `Run #${next.id}` });
       }
     };
     const startPolling = () => {
@@ -99,33 +127,48 @@ export default function TaskDetailPage() {
       }, POLL_MS);
     };
 
-    api
-      .streamRun(runId, onUpdate, controller.signal)
-      .then(startPolling, startPolling); // no-op once the run has finished
+    api.streamRun(runId, onUpdate, controller.signal).then(startPolling, startPolling); // no-op once the run has finished
 
     return () => {
       controller.abort();
       if (timer) clearInterval(timer);
     };
-  }, [runId, isRunning, loadRuns]);
+  }, [runId, isRunning, loadRuns, toast]);
 
-  async function act(fn: () => Promise<AgentRun>, fallback: string) {
+  async function act(
+    kind: NonNullable<typeof acting>,
+    fn: () => Promise<AgentRun>,
+    fallback: string,
+    success?: string,
+  ) {
     setActionError(null);
-    setActing(true);
+    setActing(kind);
     try {
-      setRun(await fn());
+      const next = await fn();
+      setRun(next);
       await loadRuns();
+      if (success) toast({ tone: "success", title: success, description: `Run #${next.id}` });
     } catch (err) {
       setActionError(errMsg(err, fallback));
+      toast({ tone: "error", title: fallback });
     } finally {
-      setActing(false);
+      setActing(null);
     }
   }
 
   async function handleRun() {
     setStarting(true);
-    await act(() => api.runTask(taskId, useRag), "Could not start the run");
-    setStarting(false);
+    setActionError(null);
+    try {
+      const next = await api.runTask(taskId, useRag);
+      setRun(next);
+      await loadRuns();
+      toast({ tone: "info", title: "Agent started", description: "This page updates live." });
+    } catch (err) {
+      setActionError(errMsg(err, "Could not start the run"));
+    } finally {
+      setStarting(false);
+    }
   }
 
   async function selectRun(id: number) {
@@ -137,108 +180,136 @@ export default function TaskDetailPage() {
     }
   }
 
-  if (authLoading || !user) {
+  if (authLoading || !user) return <PageLoading />;
+
+  const back = { href: "/tasks", label: "All tasks" };
+
+  if (notFound) {
     return (
-      <div className="flex justify-center py-24 text-muted-foreground">
-        <Spinner className="mr-2" /> Loading…
+      <div className="space-y-6">
+        <PageHeader title="Task not found" back={back} />
+        <EmptyState
+          icon={Bot}
+          title="This task doesn't exist"
+          description="It may have been removed, or it belongs to another account."
+        />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Task" back={back} />
+        <ErrorAlert message={loadError} />
+        <Button variant="outline" onClick={load}>
+          Try again
+        </Button>
+      </div>
+    );
+  }
+
+  if (task === null) {
+    return (
+      <div role="status" aria-label="Loading task" className="space-y-6">
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-9 w-2/3" />
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+          <Skeleton className="h-96" />
+          <Skeleton className="h-64" />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <Link
-        href="/tasks"
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" /> Back to tasks
-      </Link>
+    <div className="space-y-6">
+      <PageHeader
+        back={back}
+        title={task.repo_full_name ?? task.repo_url}
+        description={
+          task.issue_number ? (
+            <a
+              href={task.issue_url ?? "#"}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"
+            >
+              #{task.issue_number} {task.issue_title}
+              <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              <span className="sr-only">(opens GitHub)</span>
+            </a>
+          ) : undefined
+        }
+      />
 
-      {notFound ? (
-        <ErrorAlert message="Task not found (it may not exist or may not be yours)." />
-      ) : loadError ? (
-        <ErrorAlert message={loadError} />
-      ) : task === null ? (
-        <div className="flex justify-center py-12 text-muted-foreground">
-          <Spinner className="mr-2" /> Loading task…
-        </div>
-      ) : (
-        <>
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        {/* Task facts + controls: first on mobile, a sidebar on large screens. */}
+        <aside className="space-y-4 lg:order-2 lg:sticky lg:top-20">
           <Card>
-            <CardHeader>
-              <CardTitle className="break-all text-lg">
-                {task.repo_full_name ?? task.repo_url}
-              </CardTitle>
-              {task.issue_number && (
-                <a
-                  href={task.issue_url ?? "#"}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-                >
-                  #{task.issue_number} {task.issue_title}{" "}
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              )}
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <p>
-                <span className="text-muted-foreground">Target file:</span>{" "}
-                <span className="font-mono">
-                  {task.target_path ?? "not set — the agent localizes it"}
-                </span>
-              </p>
-              <p>
-                <span className="text-muted-foreground">Test:</span>{" "}
-                <span className="font-mono">{task.test_command}</span>
-              </p>
-              <p>
-                <span className="text-muted-foreground">Base:</span>{" "}
-                <span className="font-mono">
+            <CardContent className="space-y-4 p-5">
+              <dl className="space-y-3 text-sm">
+                <Fact label="File to fix">
+                  {task.target_path ?? (
+                    <span className="text-muted-foreground">found by the agent</span>
+                  )}
+                </Fact>
+                <Fact label="Test command">{task.test_command}</Fact>
+                <Fact label="Base">
                   {task.base_branch ?? "default branch"} @{" "}
                   {task.base_commit?.slice(0, 12) || "HEAD"}
-                </span>
-              </p>
-              {task.description && (
-                <p className="whitespace-pre-wrap text-muted-foreground">
-                  {task.description}
-                </p>
-              )}
+                </Fact>
+              </dl>
               {!demoMode && (
-                <div className="flex flex-wrap items-center gap-4 pt-2">
-                  <Button onClick={handleRun} disabled={starting || isRunning}>
-                    {starting ? <Spinner /> : <Play className="h-4 w-4" />}
-                    {isRunning
-                      ? "Agent is running…"
-                      : runs.length
-                        ? "Run again"
-                        : "Run agent"}
-                  </Button>
-                  <label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="space-y-3 border-t border-border pt-4">
+                  <label className="flex items-start gap-2 text-sm">
                     <input
                       type="checkbox"
                       checked={useRag}
                       onChange={(e) => setUseRag(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-border accent-[hsl(var(--primary))]"
                     />
-                    Use repository context (RAG)
+                    <span>
+                      Use repository context (RAG)
+                      <span className="block text-xs text-muted-foreground">
+                        Retrieves related code to find and fix the real bug.
+                      </span>
+                    </span>
                   </label>
+                  <Button className="w-full" onClick={handleRun} disabled={starting || isRunning}>
+                    {starting || isRunning ? <Spinner /> : <Play className="h-4 w-4" aria-hidden />}
+                    {isRunning ? "Agent is running…" : runs.length ? "Run again" : "Run agent"}
+                  </Button>
                 </div>
               )}
             </CardContent>
           </Card>
+          {task.description && (
+            <Disclosure title="Issue text">
+              <p className="whitespace-pre-wrap break-words text-sm text-muted-foreground">
+                {task.description}
+              </p>
+            </Disclosure>
+          )}
+        </aside>
 
+        <section aria-label="Runs" className="min-w-0 space-y-4 lg:order-1">
           {runs.length > 1 && (
-            <div className="flex flex-wrap items-center gap-2 text-sm">
-              <span className="text-muted-foreground">Runs:</span>
+            <div className="flex items-center gap-2 overflow-x-auto pb-1">
+              <span className="shrink-0 text-sm text-muted-foreground">Runs</span>
               {runs.map((r) => (
                 <button
                   key={r.id}
+                  type="button"
                   onClick={() => selectRun(r.id)}
-                  className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 ${
+                  aria-pressed={r.id === run?.id}
+                  className={cn(
+                    "inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 text-sm transition-colors",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                     r.id === run?.id
-                      ? "border-primary"
-                      : "border-border hover:border-primary"
-                  }`}
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:border-primary/60",
+                  )}
                 >
                   #{r.id} <StatusBadge status={r.status} />
                 </button>
@@ -248,24 +319,48 @@ export default function TaskDetailPage() {
 
           {actionError && <ErrorAlert message={actionError} />}
 
-          {run && (
+          {run ? (
             <RunView
               run={run}
               readOnly={demoMode}
               acting={acting}
               onApprove={(d) =>
-                act(() => api.approveRun(run.id, d), "Action failed")
+                act(
+                  d === "approved" ? "approve" : "reject",
+                  () => api.approveRun(run.id, d),
+                  d === "approved" ? "Could not open the pull request" : "Could not reject the run",
+                  d === "approved" ? "Approved — pull request opened" : "Patch rejected",
+                )
               }
               onCancel={() =>
-                act(() => api.cancelRun(run.id), "Could not cancel")
+                act("cancel", () => api.cancelRun(run.id), "Could not cancel", "Cancel requested")
               }
               onResume={() =>
-                act(() => api.resumeRun(run.id), "Could not resume")
+                act("resume", () => api.resumeRun(run.id), "Could not resume", "Run resumed")
+              }
+            />
+          ) : (
+            <EmptyState
+              icon={Bot}
+              title="No runs yet"
+              description={
+                demoMode
+                  ? "This task hasn't been run."
+                  : "Run the agent to get a plan, a patch and a sandboxed test result."
               }
             />
           )}
-        </>
-      )}
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function Fact({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</dt>
+      <dd className="mt-0.5 break-all font-mono text-[13px]">{children}</dd>
     </div>
   );
 }
@@ -280,175 +375,193 @@ function RunView({
 }: {
   run: AgentRun;
   readOnly: boolean;
-  acting: boolean;
+  acting: null | "approve" | "reject" | "cancel" | "resume";
   onApprove: (d: "approved" | "rejected") => void;
   onCancel: () => void;
   onResume: () => void;
 }) {
   const tokens = run.prompt_tokens + run.completion_tokens;
+  const awaitingApproval = run.status === "validated" && !readOnly;
+  const meta: [string, React.ReactNode][] = [
+    [
+      "Model",
+      <span key="m" className="font-mono">
+        {run.model}
+      </span>,
+    ],
+    ["Attempts", run.attempts],
+    ["LLM calls", run.llm_calls],
+    ["Tokens", tokens.toLocaleString()],
+    [
+      "Tests",
+      run.test_passed === null ? (
+        "—"
+      ) : run.test_passed ? (
+        <span key="t" className="inline-flex items-center gap-1 text-success-fg">
+          <CheckCircle2 className="h-3.5 w-3.5" aria-hidden /> passed
+        </span>
+      ) : (
+        <span key="t" className="inline-flex items-center gap-1 text-destructive-fg">
+          <XCircle className="h-3.5 w-3.5" aria-hidden /> failed
+        </span>
+      ),
+    ],
+  ];
+
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between text-base">
-          <span className="flex items-center gap-2">
-            Run #{run.id} {run.status === "running" && <Spinner />}
-          </span>
-          <StatusBadge status={run.status} />
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="text-xs text-muted-foreground">
-          model <span className="font-mono">{run.model}</span> ·{" "}
-          {run.base_commit && (
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-5 py-4">
+        <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
+          Run #{run.id}
+        </h2>
+        <StatusBadge status={run.status} />
+      </div>
+
+      <CardContent className="space-y-6 p-5">
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-3 xl:grid-cols-5">
+          {meta.map(([label, value]) => (
+            <div key={label} className="min-w-0">
+              <dt className="text-xs text-muted-foreground">{label}</dt>
+              <dd className="truncate font-medium">{value}</dd>
+            </div>
+          ))}
+        </dl>
+        <p className="-mt-3 text-xs text-muted-foreground">
+          {run.target_path && (
             <>
-              commit{" "}
-              <span className="font-mono">{run.base_commit.slice(0, 7)}</span>{" "}
-              ·{" "}
+              Editing <span className="font-mono">{run.target_path}</span>
+              {run.use_rag ? " with repository context" : ""} ·{" "}
             </>
           )}
-          {run.attempts} attempt{run.attempts === 1 ? "" : "s"} ·{" "}
-          {run.llm_calls} LLM call
-          {run.llm_calls === 1 ? "" : "s"} · {tokens.toLocaleString()} tokens ·
-          test{" "}
-          {run.test_passed === null
-            ? "—"
-            : run.test_passed
-              ? "passed ✓"
-              : "failed ✗"}{" "}
-          · {formatDate(run.updated_at)}
+          {run.base_commit && (
+            <>
+              commit <span className="font-mono">{run.base_commit.slice(0, 7)}</span> ·{" "}
+            </>
+          )}
+          updated {formatDate(run.updated_at)}
         </p>
 
-        {run.target_path && (
-          <p className="text-sm">
-            <span className="text-muted-foreground">Editing:</span>{" "}
-            <span className="font-mono">{run.target_path}</span>
-            {run.use_rag && (
-              <span className="ml-2 text-xs text-muted-foreground">
-                (RAG on)
-              </span>
-            )}
-          </p>
+        {run.pull_request && (
+          <Alert tone="success" title="Pull request opened">
+            <a
+              href={run.pull_request.url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 font-medium underline underline-offset-4"
+            >
+              <GitPullRequest className="h-4 w-4" aria-hidden /> View pull request #
+              {run.pull_request.number}
+            </a>
+          </Alert>
         )}
 
         {run.error && <ErrorAlert message={run.error} />}
 
         {run.status === "running" && !readOnly && (
-          <div className="flex items-center gap-3">
-            <Button
-              variant="secondary"
-              onClick={onCancel}
-              disabled={acting || run.cancel_requested}
-            >
-              <Square className="h-4 w-4" />
-              {run.cancel_requested ? "Cancelling…" : "Cancel"}
-            </Button>
-            <span className="text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-3 rounded-md border border-info/30 bg-info/5 p-3">
+            <Spinner className="text-info-fg" />
+            <span className="flex-1 text-sm">
               Working in the background — this page updates live.
             </span>
-          </div>
-        )}
-
-        {(run.status === "error" || run.status === "cancelled") &&
-          !readOnly && (
-            <Button variant="secondary" onClick={onResume} disabled={acting}>
-              {acting ? <Spinner /> : <RotateCcw className="h-4 w-4" />} Resume
-              from last checkpoint
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onCancel}
+              disabled={acting !== null || run.cancel_requested}
+            >
+              <Square className="h-3.5 w-3.5" aria-hidden />
+              {run.cancel_requested ? "Cancelling…" : "Cancel"}
             </Button>
-          )}
-
-        {run.plan && (
-          <div>
-            <p className="mb-1 text-sm font-medium">Plan</p>
-            <pre className="whitespace-pre-wrap rounded-md border border-border bg-muted p-3 text-xs">
-              {run.plan}
-            </pre>
           </div>
         )}
 
-        {run.events.length > 0 && (
-          <div>
-            <p className="mb-1 text-sm font-medium">Timeline</p>
-            <ol className="space-y-1 text-sm">
-              {run.events.map((e) => (
-                <li key={e.id} className="flex gap-2">
-                  <span className="w-20 shrink-0 font-mono text-xs text-muted-foreground">
-                    {e.stage}
-                  </span>
-                  <span className="text-muted-foreground">{e.message}</span>
-                </li>
-              ))}
-            </ol>
-          </div>
-        )}
-
-        {run.diff && (
-          <div>
-            <p className="mb-1 text-sm font-medium">Proposed diff</p>
-            <pre className="max-h-96 overflow-auto rounded-md border border-border bg-muted p-3 font-mono text-xs">
-              {run.diff}
-            </pre>
-          </div>
-        )}
-
-        {run.sandbox_output && (
-          <details>
-            <summary className="cursor-pointer text-sm font-medium">
-              Sandbox output
-            </summary>
-            <pre className="mt-1 max-h-72 overflow-auto rounded-md border border-border bg-muted p-3 font-mono text-xs">
-              {run.sandbox_output}
-            </pre>
-          </details>
-        )}
-
-        {run.retrieval && <RetrievalView retrieval={run.retrieval} />}
-
-        <TraceView runId={run.id} status={run.status} />
-
-        <Checkpoints runId={run.id} status={run.status} />
-
-        {run.pull_request && (
-          <a
-            href={run.pull_request.url}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-          >
-            <ExternalLink className="h-4 w-4" /> View pull request #
-            {run.pull_request.number}
-          </a>
+        {(run.status === "error" || run.status === "cancelled") && !readOnly && (
+          <Button variant="outline" onClick={onResume} disabled={acting !== null}>
+            {acting === "resume" ? <Spinner /> : <RotateCcw className="h-4 w-4" aria-hidden />}
+            Resume from last checkpoint
+          </Button>
         )}
 
         {run.review_warnings && run.review_warnings.length > 0 && (
-          <div className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm">
-            <p className="mb-1 font-medium text-warning">
-              Check before approving
+          <div className="rounded-md border border-warning/40 bg-warning/10 p-4 text-sm">
+            <p className="flex items-center gap-2 font-medium text-warning-fg">
+              <ShieldAlert className="h-4 w-4" aria-hidden /> Check before approving
             </p>
-            <ul className="list-disc space-y-0.5 pl-5 text-muted-foreground">
+            <ul className="mt-2 list-disc space-y-0.5 pl-5">
               {run.review_warnings.map((w) => (
                 <li key={w}>{w}</li>
               ))}
             </ul>
-            <p className="mt-1 text-xs text-muted-foreground">
-              The patch newly adds security-sensitive code. Repository and issue
-              text are untrusted — make sure this isn&apos;t an injected
-              instruction.
+            <p className="mt-2 text-xs text-muted-foreground">
+              The patch newly adds security-sensitive code. Repository and issue text are untrusted
+              — make sure this isn&apos;t an injected instruction.
             </p>
           </div>
         )}
 
-        {run.status === "validated" && !readOnly && (
-          <div className="flex gap-2 border-t border-border pt-4">
-            <Button onClick={() => onApprove("approved")} disabled={acting}>
-              {acting && <Spinner />} Approve &amp; open PR
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => onApprove("rejected")}
-              disabled={acting}
-            >
-              Reject
-            </Button>
+        {run.plan && (
+          <section>
+            <SectionTitle>Plan</SectionTitle>
+            <pre className="whitespace-pre-wrap break-words rounded-md border border-border bg-muted/50 p-3 text-xs leading-5">
+              {run.plan}
+            </pre>
+          </section>
+        )}
+
+        {run.diff && (
+          <section>
+            <SectionTitle>Proposed diff</SectionTitle>
+            <DiffView diff={run.diff} />
+          </section>
+        )}
+
+        {run.events.length > 0 && (
+          <section>
+            <SectionTitle>Timeline</SectionTitle>
+            <Timeline events={run.events} running={run.status === "running"} />
+          </section>
+        )}
+
+        <div className="space-y-2">
+          {run.sandbox_output && (
+            <Disclosure title="Sandbox output">
+              <pre className="max-h-72 overflow-auto rounded-md bg-muted/50 p-3 font-mono text-xs">
+                {run.sandbox_output}
+              </pre>
+            </Disclosure>
+          )}
+          {run.retrieval && <RetrievalView retrieval={run.retrieval} />}
+          <TraceView runId={run.id} status={run.status} />
+          <Checkpoints runId={run.id} status={run.status} />
+        </div>
+
+        {awaitingApproval && (
+          // Sticky on small screens so the decision is always in reach while reading the diff.
+          <div className="sticky bottom-0 -mx-5 -mb-5 border-t border-border bg-surface/95 px-5 py-4 backdrop-blur">
+            <p className="mb-3 text-sm">
+              <span className="font-medium">Your decision.</span>{" "}
+              <span className="text-muted-foreground">
+                Approving pushes a branch and opens a PR for exactly this diff.
+              </span>
+            </p>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button onClick={() => onApprove("approved")} disabled={acting !== null}>
+                {acting === "approve" ? (
+                  <Spinner />
+                ) : (
+                  <GitPullRequest className="h-4 w-4" aria-hidden />
+                )}
+                Approve &amp; open PR
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => onApprove("rejected")}
+                disabled={acting !== null}
+              >
+                {acting === "reject" && <Spinner />}
+                Reject
+              </Button>
+            </div>
           </div>
         )}
       </CardContent>
@@ -459,38 +572,40 @@ function RunView({
 function RetrievalView({ retrieval }: { retrieval: RunRetrieval }) {
   const { index, candidates, context, boosted_paths } = retrieval;
   return (
-    <details>
-      <summary className="cursor-pointer text-sm font-medium">
-        Retrieved context ({context.length} chunks · index of {index.files}{" "}
-        files / {index.chunks} chunks
-        {index.built_now ? ", built for this run" : ", reused"})
-      </summary>
-      <div className="mt-1 space-y-2 text-xs text-muted-foreground">
+    <Disclosure
+      title="Retrieved context"
+      meta={`${context.length} chunks · ${index.files} files indexed${index.built_now ? " · built for this run" : ""}`}
+    >
+      <div className="space-y-2 text-xs text-muted-foreground">
         {candidates.length > 0 && (
           <p>
-            Candidate files:{" "}
-            <span className="font-mono">{candidates.join(", ")}</span>
+            Candidate files: <span className="break-all font-mono">{candidates.join(", ")}</span>
           </p>
         )}
         {boosted_paths.length > 0 && (
           <p>
             From the traceback:{" "}
-            <span className="font-mono">{boosted_paths.join(", ")}</span>
+            <span className="break-all font-mono">{boosted_paths.join(", ")}</span>
           </p>
         )}
         <ol className="space-y-0.5 font-mono">
           {context.map((c) => (
-            <li key={`${c.path}:${c.start_line}`}>
+            <li key={`${c.path}:${c.start_line}`} className="break-all">
               {c.path}:{c.start_line}-{c.end_line}{" "}
               <span className="opacity-70">({c.score.toFixed(4)})</span>
             </li>
           ))}
         </ol>
-        <p className="opacity-70">Embeddings: {index.model}</p>
+        <p className="opacity-70">
+          Embeddings: {index.model} · index of {index.chunks} chunks
+        </p>
       </div>
-    </details>
+    </Disclosure>
   );
 }
+
+const th = "whitespace-nowrap py-1.5 pr-4 font-medium";
+const td = "whitespace-nowrap py-1.5 pr-4";
 
 /** LLM calls and audited MCP tool calls for the run, loaded when expanded. */
 function TraceView({ runId, status }: { runId: number; status: string }) {
@@ -507,80 +622,108 @@ function TraceView({ runId, status }: { runId: number; status: string }) {
   }, [open, runId, status]);
 
   return (
-    <details onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}>
-      <summary className="cursor-pointer text-sm font-medium">
-        Trace (LLM + tool calls)
-      </summary>
+    <Disclosure title="Trace (LLM + tool calls)" onToggle={setOpen}>
       {error ? (
-        <ErrorAlert message={error} className="mt-2" />
+        <ErrorAlert message={error} />
       ) : trace === null ? (
-        <p className="mt-1 text-xs text-muted-foreground">Loading…</p>
+        <p className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Spinner /> Loading trace…
+        </p>
       ) : (
-        <div className="mt-2 space-y-3 text-xs">
+        <div className="space-y-4 text-xs">
           <p className="text-muted-foreground">
-            {trace.llm_calls.length} LLM calls ·{" "}
-            {trace.total_tokens.toLocaleString()} tokens ·{" "}
-            {(trace.llm_latency_ms / 1000).toFixed(1)}s model time ·{" "}
-            {trace.tool_calls.length} tool calls
+            {trace.llm_calls.length} LLM calls · {trace.total_tokens.toLocaleString()} tokens ·{" "}
+            {(trace.llm_latency_ms / 1000).toFixed(1)}s model time · {trace.tool_calls.length} tool
+            calls
           </p>
-          <table className="w-full">
-            <thead className="text-left text-muted-foreground">
-              <tr>
-                <th className="pr-2">LLM call</th>
-                <th className="pr-2">Prompt</th>
-                <th className="pr-2">Completion</th>
-                <th className="pr-2">Latency</th>
-                <th>Result</th>
-              </tr>
-            </thead>
-            <tbody className="font-mono">
-              {trace.llm_calls.map((c) => (
-                <tr key={c.id} className="border-t border-border">
-                  <td className="pr-2">{c.node}</td>
-                  <td className="pr-2">
-                    {c.prompt_tokens.toLocaleString()}
-                    {c.tokens_estimated && "~"}
-                  </td>
-                  <td className="pr-2">
-                    {c.completion_tokens.toLocaleString()}
-                  </td>
-                  <td className="pr-2">{(c.latency_ms / 1000).toFixed(1)}s</td>
-                  <td title={c.error ?? ""}>{c.ok ? "ok" : "error"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {trace.tool_calls.length > 0 && (
+          <div className="relative overflow-x-auto">
             <table className="w-full">
+              <caption className="sr-only">LLM calls</caption>
               <thead className="text-left text-muted-foreground">
                 <tr>
-                  <th className="pr-2">MCP tool</th>
-                  <th className="pr-2">Decision</th>
-                  <th className="pr-2">Latency</th>
-                  <th>Detail</th>
+                  <th scope="col" className={th}>
+                    LLM call
+                  </th>
+                  <th scope="col" className={th}>
+                    Prompt
+                  </th>
+                  <th scope="col" className={th}>
+                    Completion
+                  </th>
+                  <th scope="col" className={th}>
+                    Latency
+                  </th>
+                  <th scope="col" className={th}>
+                    Result
+                  </th>
                 </tr>
               </thead>
               <tbody className="font-mono">
-                {trace.tool_calls.map((t) => (
-                  <tr key={t.id} className="border-t border-border">
-                    <td className="pr-2">{t.tool}</td>
-                    <td className="pr-2">
-                      {!t.allowed ? "denied" : t.ok ? "allowed" : "failed"}
+                {trace.llm_calls.map((c) => (
+                  <tr key={c.id} className="border-t border-border">
+                    <td className={td}>{c.node}</td>
+                    <td className={td}>
+                      {c.prompt_tokens.toLocaleString()}
+                      {c.tokens_estimated && "~"}
                     </td>
-                    <td className="pr-2">
-                      {(t.latency_ms / 1000).toFixed(1)}s
-                    </td>
-                    <td className="break-all text-muted-foreground">
-                      {t.detail ?? ""}
+                    <td className={td}>{c.completion_tokens.toLocaleString()}</td>
+                    <td className={td}>{(c.latency_ms / 1000).toFixed(1)}s</td>
+                    <td
+                      className={cn(td, c.ok ? "text-success-fg" : "text-destructive-fg")}
+                      title={c.error ?? ""}
+                    >
+                      {c.ok ? "ok" : "error"}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+          {trace.tool_calls.length > 0 && (
+            <div className="relative overflow-x-auto">
+              <table className="w-full">
+                <caption className="sr-only">MCP tool calls</caption>
+                <thead className="text-left text-muted-foreground">
+                  <tr>
+                    <th scope="col" className={th}>
+                      MCP tool
+                    </th>
+                    <th scope="col" className={th}>
+                      Decision
+                    </th>
+                    <th scope="col" className={th}>
+                      Latency
+                    </th>
+                    <th scope="col" className={th}>
+                      Detail
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="font-mono">
+                  {trace.tool_calls.map((t) => (
+                    <tr key={t.id} className="border-t border-border">
+                      <td className={td}>{t.tool}</td>
+                      <td
+                        className={cn(
+                          td,
+                          !t.allowed || !t.ok ? "text-destructive-fg" : "text-success-fg",
+                        )}
+                      >
+                        {!t.allowed ? "denied" : t.ok ? "allowed" : "failed"}
+                      </td>
+                      <td className={td}>{(t.latency_ms / 1000).toFixed(1)}s</td>
+                      <td className="min-w-[12rem] break-all py-1.5 text-muted-foreground">
+                        {t.detail ?? ""}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       )}
-    </details>
+    </Disclosure>
   );
 }
 
@@ -599,29 +742,26 @@ function Checkpoints({ runId, status }: { runId: number; status: string }) {
   }, [open, runId, status]);
 
   return (
-    <details onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}>
-      <summary className="cursor-pointer text-sm font-medium">
-        Graph checkpoints
-      </summary>
+    <Disclosure title="Graph checkpoints" onToggle={setOpen}>
       {error ? (
-        <ErrorAlert message={error} className="mt-2" />
+        <ErrorAlert message={error} />
       ) : items === null ? (
-        <p className="mt-1 text-xs text-muted-foreground">Loading…</p>
-      ) : items.length === 0 ? (
-        <p className="mt-1 text-xs text-muted-foreground">
-          No checkpoints for this run.
+        <p className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Spinner /> Loading checkpoints…
         </p>
+      ) : items.length === 0 ? (
+        <p className="text-xs text-muted-foreground">No checkpoints for this run.</p>
       ) : (
-        <ol className="mt-1 space-y-0.5 font-mono text-xs text-muted-foreground">
+        <ol className="space-y-0.5 font-mono text-xs text-muted-foreground">
           {items.map((c) => (
             <li key={c.checkpoint_id}>
               step {c.step} → {c.next.length ? c.next.join(", ") : "end"}
-              {c.waiting_for_approval && " (waiting for approval)"} · attempts{" "}
-              {c.attempts} · llm {c.llm_calls}
+              {c.waiting_for_approval && " (waiting for approval)"} · attempts {c.attempts} · llm{" "}
+              {c.llm_calls}
             </li>
           ))}
         </ol>
       )}
-    </details>
+    </Disclosure>
   );
 }

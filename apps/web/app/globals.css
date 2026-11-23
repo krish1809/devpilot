@@ -18,6 +18,13 @@
   --info: 199 89% 48%;
   --ring: 221 83% 53%;
   --radius: 0.625rem;
+  /* Status text colors: the fills above at 4.5:1+ contrast on light surfaces
+     (WCAG AA), used for badge/alert text. */
+  --success-fg: 142 72% 26%;
+  --warning-fg: 30 90% 30%;
+  --destructive-fg: 0 74% 40%;
+  --info-fg: 200 90% 30%;
+  color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -29,17 +36,23 @@
     --border: 222 12% 20%;
     --foreground: 210 20% 96%;
     --primary: 217 91% 60%;
-    --primary-foreground: 0 0% 100%;
     --accent: 263 90% 66%;
     --success: 142 71% 45%;
     --warning: 38 92% 50%;
     --destructive: 0 72% 51%;
     --info: 199 89% 48%;
     --ring: 217 91% 60%;
+    --primary-foreground: 222 47% 8%;
+    --success-fg: 142 69% 58%;
+    --warning-fg: 43 96% 58%;
+    --destructive-fg: 0 91% 71%;
+    --info-fg: 199 89% 62%;
+    color-scheme: dark;
   }
 }
 
 :root[data-theme="dark"] {
+  color-scheme: dark;
   --background: 222 18% 8%;
   --surface: 222 16% 11%;
   --muted: 222 14% 16%;
@@ -47,17 +60,25 @@
   --border: 222 12% 20%;
   --foreground: 210 20% 96%;
   --primary: 217 91% 60%;
-  --primary-foreground: 0 0% 100%;
   --accent: 263 90% 66%;
   --success: 142 71% 45%;
   --warning: 38 92% 50%;
   --destructive: 0 72% 51%;
   --info: 199 89% 48%;
   --ring: 217 91% 60%;
+  --primary-foreground: 222 47% 8%;
+  --success-fg: 142 69% 58%;
+  --warning-fg: 43 96% 58%;
+  --destructive-fg: 0 91% 71%;
+  --info-fg: 199 89% 62%;
 }
 
 * {
   border-color: hsl(var(--border));
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
@@ -73,4 +94,36 @@ body {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-toast-in {
+  animation: toast-in 180ms ease-out;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+dialog[open] {
+  animation: fade-in 150ms ease-out;
+}
+
+dialog::backdrop {
+  background: rgb(0 0 0 / 0.5);
 }

@@ -14,16 +14,28 @@ Versioned prefix: `/api/v1`
 | POST | `/api/v1/auth/register` | Register; `201`, or `409` if email taken, `422` on invalid input |
 | POST | `/api/v1/auth/login` | Log in; `200` with `{access_token, token_type}`, or `401` |
 | GET | `/api/v1/auth/me` | Current user; `200` with a valid bearer token, else `401` |
+| POST | `/api/v1/auth/forgot-password` | `{email}` → **always** `202 {"detail": "If an account exists for that email, we've sent a link to reset its password."}`, whether or not the account exists; the email (if any) is sent after the response. `429` when rate-limited |
+| POST | `/api/v1/auth/reset-password` | `{token, new_password}` → `200 {"detail": …}`; `400 "This reset link is invalid or has expired…"` for an unknown, expired or already-used token (one message for all three); `422` if `new_password` breaks the password rules (the token stays usable) |
 
-`register` and `login` are rate-limited per client IP; exceeding the limit returns
-`429` with a `Retry-After` header.
+`register`, `login` and `reset-password` are rate-limited per client IP (10/min);
+`forgot-password` per IP (5 per 15 min) **and** per email (3 per hour, applied to any address
+so it reveals nothing). Exceeding a limit returns `429` with a `Retry-After` header.
+
+Password reset: tokens are 256-bit, single-use, expire after 30 minutes, and only their
+SHA-256 is stored; a successful reset invalidates every other outstanding link and **every
+access token issued before it**. The link is `FRONTEND_URL/reset-password#token=…` (token in
+the fragment, so it never reaches server logs). Design and reasoning:
+[password-reset.md](password-reset.md).
 
 Authentication is a bearer JWT (HS256). Send it as `Authorization: Bearer <access_token>`.
+Tokens carry `sub`, `iat`, `exp` and `ver` (the user's `token_version`); a token whose `ver`
+no longer matches — because the password was reset — gets `401`. Tokens without `ver`
+(issued before 2026-11-22) count as version 0.
 Register example:
 ```json
 { "email": "user@example.com", "password": "supersecret" }
 ```
-Passwords must be 8–128 characters. Emails are normalized to lowercase.
+Passwords must be 8–128 characters (the same rule for registration and reset). Emails are normalized to lowercase.
 
 ## Projects
 All project endpoints **require authentication** and are **scoped to the owner**.
@@ -43,7 +55,8 @@ A project owned by another user returns `404` (existence is not revealed).
 | GET | `/api/v1/audit/me` | Current user's own audit events (newest first); `200`, `401` |
 
 Security-relevant actions are recorded to an append-only `audit_logs` table:
-`user.registered`, `user.login.succeeded`, `user.login.failed`, `project.created`,
+`user.registered`, `user.login.succeeded`, `user.login.failed`, `user.password_reset.requested`,
+`user.password_reset.completed`, `user.bootstrapped`, `project.created`,
 `project.deleted`, `task.imported_from_issue`, `run.approved`, `run.rejected`. Audit rows never contain passwords, tokens, or full payloads.
 
 ## Agent
@@ -117,7 +130,7 @@ Response includes `id`, `owner_id`, `name`, `description`, `created_at`, and `up
 - On `PATCH`, `name` is optional but, when present, must satisfy the same constraints.
 
 ## Known limitations
-- Auth is bearer-JWT (HS256) with per-owner project scoping; no roles/teams, no refresh tokens, no token revocation list yet.
+- Auth is bearer-JWT (HS256) with per-owner project scoping; no roles/teams, no refresh tokens. Revocation is per user, not per token: a password reset bumps `token_version`, which ends all of that user's sessions at once.
 - Tokens are signed with stdlib HMAC + `hashlib.scrypt` password hashing (no external crypto deps in the sandbox); swap to `bcrypt`/`PyJWT` when convenient — see `app/core/security.py`.
 - No pagination yet.
 - Rate limiting is in-memory/per-process (fine for a single API process; a multi-replica deployment would need a shared store, which is out of scope for this portfolio project).

@@ -97,6 +97,24 @@ def verify_password(password: str, stored: str) -> bool:
 
 
 # --------------------------------------------------------------------------- #
+# One-time tokens (password reset)
+# --------------------------------------------------------------------------- #
+def generate_url_token() -> tuple[str, str]:
+    """Return ``(raw_token, sha256_hex)`` for a new single-use token.
+
+    The raw token (256 bits from the OS CSPRNG) goes to the user; only the hash
+    is stored. A fast hash is enough here: unlike a password, the input has full
+    entropy, so there is nothing to brute-force from a leaked hash.
+    """
+    raw = secrets.token_urlsafe(32)
+    return raw, hash_url_token(raw)
+
+
+def hash_url_token(raw: str) -> str:
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+# --------------------------------------------------------------------------- #
 # Access tokens (JWT HS256)
 # --------------------------------------------------------------------------- #
 def _sign(signing_input: bytes) -> bytes:
@@ -104,15 +122,19 @@ def _sign(signing_input: bytes) -> bytes:
     return hmac.new(secret, signing_input, hashlib.sha256).digest()
 
 
-def create_access_token(subject: str, expires_in: int | None = None) -> str:
-    """Create a signed JWT whose ``sub`` claim is ``subject``."""
+def create_access_token(subject: str, expires_in: int | None = None, version: int = 0) -> str:
+    """Create a signed JWT whose ``sub`` claim is ``subject``.
+
+    ``version`` is the user's ``token_version`` at issue time (the ``ver``
+    claim); a password reset bumps it, which invalidates older tokens.
+    """
     settings = get_settings()
     if expires_in is None:
         expires_in = settings.access_token_expire_minutes * 60
 
     now = int(time.time())
     header = {"alg": _JWT_ALG, "typ": "JWT"}
-    payload = {"sub": subject, "iat": now, "exp": now + expires_in}
+    payload = {"sub": subject, "iat": now, "exp": now + expires_in, "ver": version}
 
     segments = [
         _b64url_encode(json.dumps(header, separators=(",", ":")).encode("utf-8")),

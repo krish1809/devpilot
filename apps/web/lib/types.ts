@@ -20,6 +20,10 @@ export interface Token {
   token_type: string;
 }
 
+export interface MessageResponse {
+  detail: string;
+}
+
 export interface AuditLog {
   id: number;
   user_id: number | null;

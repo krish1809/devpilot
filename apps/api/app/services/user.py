@@ -1,3 +1,5 @@
+import secrets
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -43,4 +45,22 @@ def authenticate_user(db: Session, email: str, password: str) -> User | None:
         return None
     if not verify_password(password, user.hashed_password):
         return None
+    return user
+
+
+def ensure_bootstrap_user(db: Session, email: str) -> User | None:
+    """Create ``email``'s account if missing; return it only when newly created.
+
+    The password is random and never shown, so the account can't be signed in
+    to until its owner sets a password with the forgot-password flow. This lets
+    a deployment with registration turned off (the showcase) have one real
+    account without database credentials ever leaving the host.
+    """
+    email = email.strip().lower()
+    if not email or get_user_by_email(db, email) is not None:
+        return None
+    user = User(email=email, hashed_password=hash_password(secrets.token_urlsafe(32)))
+    db.add(user)
+    db.commit()
+    db.refresh(user)
     return user
