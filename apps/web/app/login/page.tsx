@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Sparkles } from "lucide-react";
 
 import { AuthShell, linkClass } from "@/components/AuthShell";
+import { GoogleSignIn, OrDivider } from "@/components/GoogleSignIn";
 import { Alert, ErrorAlert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -16,7 +17,16 @@ import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 
 export default function LoginPage() {
-  const { user, loading, login, demoMode, loginDemo, sessionExpired } = useAuth();
+  const {
+    user,
+    loading,
+    login,
+    demoMode,
+    loginDemo,
+    sessionExpired,
+    registrationOpen,
+    googleClientId,
+  } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -56,11 +66,11 @@ export default function LoginPage() {
 
   return (
     <AuthShell
-      title="Log in to DevPilot"
-      description="Turn GitHub issues into tested pull requests — with you approving every one."
+      title="Welcome back"
+      description="Log in to turn GitHub issues into tested pull requests — with you approving every one."
       aside={
         demoMode && (
-          <div className="rounded-lg border border-primary/30 bg-primary/5 p-5">
+          <div className="rounded-2xl border border-primary/30 bg-primary/[0.07] p-5 shadow-glow">
             <p className="flex items-center gap-2 font-medium">
               <Sparkles className="h-4 w-4 text-primary" aria-hidden />
               Explore the showcase
@@ -77,7 +87,7 @@ export default function LoginPage() {
         )
       }
       footer={
-        !demoMode && (
+        registrationOpen && (
           <>
             No account?{" "}
             <Link href="/register" className={linkClass}>
@@ -87,47 +97,51 @@ export default function LoginPage() {
         )
       }
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-5">
         {sessionExpired && !error && (
           <Alert tone="info">Your session has ended. Please log in again.</Alert>
         )}
         {error && <ErrorAlert message={error} />}
-        <Field id="email" label="Email">
-          {(control) => (
-            <Input
-              {...control}
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          )}
-        </Field>
-        <Field
-          id="password"
-          label="Password"
-          labelAction={
-            <Link href="/forgot-password" className={`text-sm ${linkClass}`}>
-              Forgot password?
-            </Link>
-          }
-        >
-          {(control) => (
-            <PasswordInput
-              {...control}
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          )}
-        </Field>
-        <Button type="submit" className="w-full" disabled={submitting !== null}>
-          {submitting === "form" && <Spinner />}
-          Log in
-        </Button>
-      </form>
+        <GoogleSignIn onSuccess={() => router.push("/tasks")} onError={setError} />
+        {googleClientId && <OrDivider />}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <Field id="email" label="Email">
+            {(control) => (
+              <Input
+                {...control}
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            )}
+          </Field>
+          <Field
+            id="password"
+            label="Password"
+            labelAction={
+              <Link href="/forgot-password" className={`text-sm ${linkClass}`}>
+                Forgot password?
+              </Link>
+            }
+          >
+            {(control) => (
+              <PasswordInput
+                {...control}
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            )}
+          </Field>
+          <Button type="submit" className="w-full" disabled={submitting !== null}>
+            {submitting === "form" && <Spinner />}
+            Log in
+          </Button>
+        </form>
+      </div>
     </AuthShell>
   );
 }

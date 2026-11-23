@@ -7,6 +7,7 @@ import type {
   GitHubRepo,
   GitHubTree,
   MessageResponse,
+  PublicConfig,
   Project,
   RunCheckpoint,
   RunTrace,
@@ -62,7 +63,7 @@ export class ApiError extends Error {
 export const UNAUTHORIZED_EVENT = "devpilot:unauthorized";
 
 // Endpoints where 401 means "wrong credentials", not "your session ended".
-const CREDENTIAL_PATHS = ["/api/v1/auth/login", "/api/v1/auth/demo"];
+const CREDENTIAL_PATHS = ["/api/v1/auth/login", "/api/v1/auth/demo", "/api/v1/auth/google"];
 
 function signalUnauthorized(path: string, sentToken: boolean): void {
   if (!sentToken || typeof window === "undefined") return;
@@ -221,10 +222,17 @@ export const api = {
     }),
 
   /** Public flags (e.g. read-only showcase mode). */
-  getConfig: () => request<{ demo_mode: boolean }>("/api/v1/config"),
+  getConfig: () => request<PublicConfig>("/api/v1/config"),
 
   /** Showcase only: a session as the read-only demo user. */
   demoLogin: () => request<Token>("/api/v1/auth/demo", { method: "POST" }),
+
+  /** Exchange a Google ID token (from Google's sign-in button) for a DevPilot token. */
+  googleLogin: (credential: string) =>
+    request<Token>("/api/v1/auth/google", {
+      method: "POST",
+      body: JSON.stringify({ credential }),
+    }),
 
   listProjects: () => request<Project[]>("/api/v1/projects"),
 
@@ -234,10 +242,12 @@ export const api = {
   getProject: (id: number) => request<Project>(`/api/v1/projects/${id}`),
 
   updateProject: (id: number, input: ProjectUpdateInput) =>
-    request<Project>(`/api/v1/projects/${id}`, { method: "PATCH", body: input }),
+    request<Project>(`/api/v1/projects/${id}`, {
+      method: "PATCH",
+      body: input,
+    }),
 
-  deleteProject: (id: number) =>
-    request<void>(`/api/v1/projects/${id}`, { method: "DELETE" }),
+  deleteProject: (id: number) => request<void>(`/api/v1/projects/${id}`, { method: "DELETE" }),
 
   myAudit: () => request<AuditLog[]>("/api/v1/audit/me"),
 
@@ -262,8 +272,7 @@ export const api = {
 
   listTaskRuns: (taskId: number) => request<RunSummary[]>(`/api/v1/tasks/${taskId}/runs`),
 
-  getRunCheckpoints: (id: number) =>
-    request<RunCheckpoint[]>(`/api/v1/runs/${id}/checkpoints`),
+  getRunCheckpoints: (id: number) => request<RunCheckpoint[]>(`/api/v1/runs/${id}/checkpoints`),
 
   getRunTrace: (id: number) => request<RunTrace>(`/api/v1/runs/${id}/trace`),
 

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { AuthShell, linkClass } from "@/components/AuthShell";
+import { GoogleSignIn, OrDivider } from "@/components/GoogleSignIn";
 import { ErrorAlert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -16,7 +17,7 @@ import { useAuth } from "@/lib/auth";
 import { passwordProblem } from "@/lib/validation";
 
 export default function RegisterPage() {
-  const { user, loading, register, demoMode, loginDemo } = useAuth();
+  const { user, loading, register, demoMode, loginDemo, googleClientId } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -85,6 +86,15 @@ export default function RegisterPage() {
             {submitting && <Spinner />}
             View the demo — no account needed
           </Button>
+          {googleClientId && (
+            <>
+              <OrDivider label="or" />
+              <GoogleSignIn onSuccess={() => router.push("/tasks")} onError={setError} />
+              <p className="text-center text-xs">
+                Google accounts on the showcase are read-only, like the demo.
+              </p>
+            </>
+          )}
           <p className="text-center">
             <a
               href="https://github.com/krish1809/devpilot#run-it-locally"
@@ -103,7 +113,7 @@ export default function RegisterPage() {
   return (
     <AuthShell
       title="Create your account"
-      description="Point DevPilot at a GitHub issue and review the fix it proposes."
+      description="Point DevPilot at a GitHub issue and review the fix it proposes. Takes ten seconds with Google."
       footer={
         <>
           Already have an account?{" "}
@@ -113,36 +123,45 @@ export default function RegisterPage() {
         </>
       }
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-5">
         {error && <ErrorAlert message={error} />}
-        <Field id="email" label="Email" error={fieldErrors.email}>
-          {(control) => (
-            <Input
-              {...control}
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          )}
-        </Field>
-        <Field id="password" label="Password" hint="8–128 characters." error={fieldErrors.password}>
-          {(control) => (
-            <PasswordInput
-              {...control}
-              autoComplete="new-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          )}
-        </Field>
-        <Button type="submit" className="w-full" disabled={submitting}>
-          {submitting && <Spinner />}
-          Sign up
-        </Button>
-      </form>
+        <GoogleSignIn context="signup" onSuccess={() => router.push("/tasks")} onError={setError} />
+        {googleClientId && <OrDivider label="or sign up with email" />}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <Field id="email" label="Email" error={fieldErrors.email}>
+            {(control) => (
+              <Input
+                {...control}
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            )}
+          </Field>
+          <Field
+            id="password"
+            label="Password"
+            hint="8–128 characters."
+            error={fieldErrors.password}
+          >
+            {(control) => (
+              <PasswordInput
+                {...control}
+                autoComplete="new-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            )}
+          </Field>
+          <Button type="submit" className="w-full" disabled={submitting}>
+            {submitting && <Spinner />}
+            Sign up
+          </Button>
+        </form>
+      </div>
     </AuthShell>
   );
 }
