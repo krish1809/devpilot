@@ -16,6 +16,29 @@ CI 8–42%), oracle-file 7/20, oracle-file+RAG 4/20, gold 20/20.
 
 ---
 
+## 🆕 Google sign-in + email delivery fix + dark redesign (2026-11-23, approved addition)
+- Branch `feature/google-signin-email-redesign` (PR #1 with password reset was merged 2026-11-23).
+- **Email "never arrived" on live**: endpoints worked (probed: 202/400/401), but the Resend
+  `onboarding@resend.dev` sender only reaches the Resend owner. Owner chose **Resend + own domain**.
+  Errors now include the provider reason (links redacted); startup logs `Email is misconfigured: …`;
+  `python -m scripts.send_test_email <to>`. Render free blocks SMTP (since Sept 2025).
+- **Google sign-in**: `POST /auth/google` verifies the ID token with PyJWT + Google JWKS (RS256 only,
+  aud=`GOOGLE_CLIENT_ID`, iss, exp, `email_verified`), then signs in by `users.google_sub`, links by verified
+  email, or creates the account. Same DevPilot JWT afterwards. Migration `c8e9ed9f400e` (`users.google_sub`,
+  unique `uq_users_google_sub`); applied to the local dev DB. `/config` now returns
+  `{demo_mode, registration_open, google_client_id}`; the web reads the client ID from there (no Vercel env).
+  Design + Google Cloud setup: [docs/google-sign-in.md](docs/google-sign-in.md).
+- **Showcase reads**: tasks/runs are owner-scoped, so in DEMO_MODE `_data_owner_id()` in `app/api/agent.py`
+  makes every signed-in account read the demo user's recorded runs (writes still refused).
+- **Web redesign**: dark-first (default dark; `data-theme` = light|system opt-in), violet `252 95% 70%` +
+  cyan accent, AA-checked; Logo + favicon; landing with mock run window and results; split AuthShell;
+  `RunPipeline` stepper (`pipelineStates()` in `components/RunParts.tsx`); metric tiles show "not recorded"
+  for runs predating usage tracking (showcase run #7); evals score tiles.
+- Gotchas: no Prettier config — use `npx prettier --print-width 100` on touched files only. `psql` isn't
+  installed; use SQLAlchemy for scratch DBs. `pkill -f` matching your own shell's command line kills it.
+- Owner TODO: verify a domain in Resend, set `EMAIL_FROM`, `RESEND_API_KEY`, `FRONTEND_URL`,
+  `FORWARDED_ALLOW_IPS=*`, `GOOGLE_CLIENT_ID` on Render; create the OAuth client (origins: Vercel URL + localhost:3000).
+
 ## 🆕 Password reset + UI/UX pass (2026-11-22, approved addition)
 - Design + reasoning: [docs/password-reset.md](docs/password-reset.md). Code: `app/services/password_reset.py`,
   `app/api/auth.py` (`/auth/forgot-password`, `/auth/reset-password`), `app/integrations/email.py`

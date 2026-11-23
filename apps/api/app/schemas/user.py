@@ -64,6 +64,11 @@ class Token(BaseModel):
     token_type: str = "bearer"
 
 
+class GoogleSignInRequest(BaseModel):
+    # The ID token from Google's sign-in button (a JWT; typically ~1 KB).
+    credential: str = Field(min_length=1, max_length=4096)
+
+
 class ForgotPasswordRequest(BaseModel):
     # Deliberately not format-validated: a malformed address simply matches no
     # account and gets the same generic response as everything else.

@@ -130,7 +130,7 @@ flowchart LR
 | Retrieval | pgvector, Postgres full-text search, fastembed (`BAAI/bge-small-en-v1.5`, ONNX) |
 | Tools | MCP Python SDK 2.x (stdio), Docker sandbox, git, GitHub REST |
 | Frontend | Next.js 14, TypeScript, Tailwind |
-| Accounts | JWT auth with per-user session revocation; [password reset](docs/password-reset.md) with hashed single-use tokens, generic responses and rate limits; email via Resend |
+| Accounts | JWT auth with per-user session revocation; [Sign in with Google](docs/google-sign-in.md) (ID token verified by the API); [password reset](docs/password-reset.md) with hashed single-use tokens, generic responses and rate limits; email via Resend |
 | Quality | pytest (≈270 tests incl. a real Postgres/pgvector test DB), Vitest + Testing Library, Ruff, ESLint, GitHub Actions |
 | Evaluation | SWE-bench Lite + the official `swebench` harness |
 

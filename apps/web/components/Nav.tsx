@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Bot, FlaskConical, FolderKanban, LogOut, Menu, Rocket, X } from "lucide-react";
+import { Bot, FlaskConical, FolderKanban, LogOut, Menu, X } from "lucide-react";
 
+import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/theme";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
@@ -20,7 +21,7 @@ const isActive = (pathname: string, href: string) =>
   pathname === href || pathname.startsWith(`${href}/`);
 
 export function Nav() {
-  const { user, logout, demoMode } = useAuth();
+  const { user, logout, demoMode, registrationOpen } = useAuth();
   const router = useRouter();
   const pathname = usePathname() ?? "/";
   const [menuOpen, setMenuOpen] = useState(false);
@@ -35,15 +36,13 @@ export function Nav() {
   }
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+    <header className="sticky top-0 z-40 border-b border-border/70 bg-background/80 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60">
       <div className="mx-auto flex h-14 max-w-page items-center justify-between gap-4 px-4 sm:px-6">
         <Link
           href="/"
-          className="flex items-center gap-2 rounded-md font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex items-center gap-2.5 rounded-md font-semibold tracking-tight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10">
-            <Rocket className="h-4 w-4 text-primary" aria-hidden />
-          </span>
+          <Logo />
           DevPilot
         </Link>
 
@@ -61,7 +60,7 @@ export function Nav() {
                         "inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                         active
-                          ? "bg-muted text-foreground"
+                          ? "bg-muted text-foreground shadow-[inset_0_0_0_1px_hsl(var(--border))]"
                           : "text-muted-foreground hover:bg-muted hover:text-foreground",
                       )}
                     >
@@ -80,10 +79,16 @@ export function Nav() {
           {user ? (
             <>
               <span
-                className="hidden max-w-[14rem] truncate text-sm text-muted-foreground lg:inline"
+                className="hidden max-w-[14rem] items-center gap-2 truncate rounded-full border border-border bg-surface/60 py-1 pl-1 pr-3 text-sm text-muted-foreground lg:inline-flex"
                 title={user.email}
               >
-                {user.email}
+                <span
+                  aria-hidden
+                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold uppercase text-primary"
+                >
+                  {user.email[0]}
+                </span>
+                <span className="truncate">{user.email}</span>
               </span>
               <Button
                 variant="ghost"
@@ -111,7 +116,7 @@ export function Nav() {
               <ButtonLink href="/login" variant="ghost" size="sm">
                 Log in
               </ButtonLink>
-              {!demoMode && (
+              {registrationOpen && (
                 <ButtonLink href="/register" size="sm">
                   Sign up
                 </ButtonLink>
@@ -160,7 +165,7 @@ export function Nav() {
       )}
 
       {demoMode && (
-        <div className="border-t border-border bg-primary/5 px-4 py-1.5 text-center text-xs text-muted-foreground">
+        <div className="border-t border-border/70 bg-primary/[0.06] px-4 py-1.5 text-center text-xs text-muted-foreground">
           Read-only showcase of real DevPilot runs. The agent needs Docker, so it runs locally —{" "}
           <a
             href="https://github.com/krish1809/devpilot"

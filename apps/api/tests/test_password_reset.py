@@ -425,3 +425,70 @@ def test_resend_backend_errors_never_include_the_body(monkeypatch: pytest.Monkey
     no_key = get_settings().model_copy(update={"resend_api_key": ""})
     with pytest.raises(EmailError):
         ResendEmailSender(no_key).send(EmailMessage(to=EMAIL, subject="s", text="t", html="h"))
+
+
+def test_resend_errors_explain_the_cause_without_leaking_links(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The provider's reason reaches the logs (so '403' is diagnosable), but a
+    reset link echoed back in an error is blanked."""
+    settings = get_settings().model_copy(update={"resend_api_key": "re_test"})
+    body = {
+        "name": "validation_error",
+        "message": "You can only send testing emails to your own email address. "
+        "Link: https://app.example/reset-password#token=SECRET token=SECRET2",
+    }
+    monkeypatch.setattr(email_mod.httpx, "post", lambda *a, **k: httpx.Response(403, json=body))
+    with pytest.raises(EmailError) as excinfo:
+        ResendEmailSender(settings).send(EmailMessage(to=EMAIL, subject="s", text="t", html="h"))
+    error = str(excinfo.value)
+    assert "403" in error and "only send testing emails" in error
+    assert "SECRET" not in error and "https://" not in error
+
+
+def test_email_config_problems_name_the_usual_mistakes() -> None:
+    base = get_settings()
+    good = base.model_copy(
+        update={
+            "email_backend": "resend",
+            "resend_api_key": "re_x",
+            "email_from": "DevPilot <noreply@mydomain.dev>",
+        }
+    )
+    assert email_mod.email_config_problems(good) == []
+
+    sandbox = good.model_copy(update={"email_from": "DevPilot <onboarding@resend.dev>"})
+    assert any("resend.dev" in p for p in email_mod.email_config_problems(sandbox))
+
+    no_key = good.model_copy(update={"resend_api_key": ""})
+    assert any("RESEND_API_KEY" in p for p in email_mod.email_config_problems(no_key))
+    # The key's value is never part of a message.
+    assert all("re_x" not in p for p in email_mod.email_config_problems(sandbox))
+
+    console_prod = base.model_copy(update={"email_backend": "console", "environment": "production"})
+    assert email_mod.email_config_problems(console_prod)
+    console_dev = base.model_copy(update={"email_backend": "console", "environment": "development"})
+    assert email_mod.email_config_problems(console_dev) == []
+
+
+def test_send_test_email_script_reports_failure(monkeypatch: pytest.MonkeyPatch, capsys) -> None:  # noqa: ANN001
+    from scripts import send_test_email
+
+    class Failing:
+        def send(self, message: EmailMessage) -> None:
+            raise EmailError("email provider returned HTTP 403: domain is not verified")
+
+    monkeypatch.setattr(send_test_email, "get_email_sender", lambda: Failing())
+    assert send_test_email.main(["me@example.com"]) == 1
+    assert "domain is not verified" in capsys.readouterr().out
+
+    sent: list[EmailMessage] = []
+
+    class Ok:
+        def send(self, message: EmailMessage) -> None:
+            sent.append(message)
+
+    monkeypatch.setattr(send_test_email, "get_email_sender", lambda: Ok())
+    assert send_test_email.main(["me@example.com"]) == 0
+    assert sent[0].to == "me@example.com"
+    assert send_test_email.main(["not-an-email"]) == 2

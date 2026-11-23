@@ -3,7 +3,17 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { Bot, ChevronRight, GitBranch, Github, Plus, X } from "lucide-react";
+import {
+  Bot,
+  ChevronRight,
+  CircleDot,
+  FileCode2,
+  GitBranch,
+  Github,
+  Plus,
+  TerminalSquare,
+  X,
+} from "lucide-react";
 
 import { ImportFromIssue } from "@/components/ImportFromIssue";
 import { ErrorAlert } from "@/components/ui/alert";
@@ -133,7 +143,7 @@ export default function TasksPage() {
             <div
               role="group"
               aria-label="Task source"
-              className="inline-flex rounded-md border border-border p-0.5"
+              className="inline-flex rounded-lg border border-border bg-background/60 p-1"
             >
               {(
                 [
@@ -147,10 +157,10 @@ export default function TasksPage() {
                   aria-pressed={source === value}
                   onClick={() => setSource(value)}
                   className={cn(
-                    "inline-flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium transition-colors",
+                    "inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                     source === value
-                      ? "bg-muted text-foreground"
+                      ? "bg-primary/15 text-foreground ring-1 ring-inset ring-primary/30"
                       : "text-muted-foreground hover:text-foreground",
                   )}
                 >
@@ -277,30 +287,44 @@ export default function TasksPage() {
               <li key={task.id}>
                 <Link
                   href={`/tasks/${task.id}`}
-                  className="group block rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                  className="card-interactive group flex items-center gap-4 rounded-xl border border-border bg-surface/70 p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:p-5"
                 >
-                  <Card className="transition-colors group-hover:border-primary/60">
-                    <CardContent className="flex items-center gap-4 p-4">
-                      <div className="min-w-0 flex-1 space-y-1">
-                        <p className="truncate text-sm text-muted-foreground">
-                          {task.repo_full_name ?? task.repo_url}
-                          {task.issue_number && ` · #${task.issue_number}`}
-                        </p>
-                        <p className="line-clamp-2 font-medium">
-                          {task.issue_title ?? task.description ?? "Untitled task"}
-                        </p>
-                        <p className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                          <span className="font-mono">{task.target_path ?? "file: auto"}</span>
-                          <span className="max-w-full truncate font-mono">{task.test_command}</span>
-                          <span>{formatDate(task.created_at)}</span>
-                        </p>
-                      </div>
-                      <ChevronRight
-                        className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
-                        aria-hidden
-                      />
-                    </CardContent>
-                  </Card>
+                  <span className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-background/70 sm:flex">
+                    {task.issue_number ? (
+                      <CircleDot className="h-5 w-5 text-success-fg" aria-hidden />
+                    ) : (
+                      <GitBranch className="h-5 w-5 text-muted-foreground" aria-hidden />
+                    )}
+                  </span>
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <p className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+                      <Github className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                      <span className="truncate">{task.repo_full_name ?? task.repo_url}</span>
+                      {task.issue_number && (
+                        <span className="shrink-0 rounded-full border border-border px-1.5 font-mono">
+                          #{task.issue_number}
+                        </span>
+                      )}
+                    </p>
+                    <p className="line-clamp-2 font-medium leading-snug group-hover:text-foreground">
+                      {task.issue_title ?? task.description ?? "Untitled task"}
+                    </p>
+                    <p className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                      <span className="inline-flex items-center gap-1.5 font-mono">
+                        <FileCode2 className="h-3.5 w-3.5" aria-hidden />
+                        {task.target_path ?? "auto-located"}
+                      </span>
+                      <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 font-mono">
+                        <TerminalSquare className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                        <span className="truncate">{task.test_command}</span>
+                      </span>
+                      <span>{formatDate(task.created_at)}</span>
+                    </p>
+                  </div>
+                  <ChevronRight
+                    className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary"
+                    aria-hidden
+                  />
                 </Link>
               </li>
             ))}

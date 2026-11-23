@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import { api, getStoredToken, setStoredToken, UNAUTHORIZED_EVENT } from "./api";
 import type { User } from "./types";
@@ -21,6 +14,12 @@ interface AuthContextValue {
   /** True when the API is a read-only public showcase (DEMO_MODE). */
   demoMode: boolean;
   loginDemo: () => Promise<void>;
+  /** Sign in with the ID token from Google's button. */
+  loginWithGoogle: (credential: string) => Promise<void>;
+  /** False on the read-only showcase, where sign-up is off. */
+  registrationOpen: boolean;
+  /** Google OAuth client ID from the API; "" hides Google sign-in. */
+  googleClientId: string;
   /** True after the API rejected a stored session (expired, or revoked by a password reset). */
   sessionExpired: boolean;
 }
@@ -32,6 +31,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [demoMode, setDemoMode] = useState(false);
   const [sessionExpired, setSessionExpired] = useState(false);
+  const [registrationOpen, setRegistrationOpen] = useState(true);
+  const [googleClientId, setGoogleClientId] = useState("");
 
   // Any signed-in request that gets 401 ends the session everywhere in the app;
   // protected pages then redirect to /login, which explains why.
@@ -48,7 +49,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     api
       .getConfig()
-      .then((c) => setDemoMode(Boolean(c.demo_mode)))
+      .then((c) => {
+        setDemoMode(Boolean(c.demo_mode));
+        setRegistrationOpen(c.registration_open ?? !c.demo_mode);
+        setGoogleClientId(c.google_client_id ?? "");
+      })
       .catch(() => setDemoMode(false));
   }, []);
 
@@ -90,6 +95,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSessionExpired(false);
   }, []);
 
+  const loginWithGoogle = useCallback(async (credential: string) => {
+    const token = await api.googleLogin(credential);
+    setStoredToken(token.access_token);
+    setUser(await api.me(token.access_token));
+    setSessionExpired(false);
+  }, []);
+
   const logout = useCallback(() => {
     setStoredToken(null);
     setUser(null);
@@ -97,8 +109,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, loading, login, register, logout, demoMode, loginDemo, sessionExpired }),
-    [user, loading, login, register, logout, demoMode, loginDemo, sessionExpired],
+    () => ({
+      user,
+      loading,
+      login,
+      register,
+      logout,
+      demoMode,
+      loginDemo,
+      loginWithGoogle,
+      registrationOpen,
+      googleClientId,
+      sessionExpired,
+    }),
+    [
+      user,
+      loading,
+      login,
+      register,
+      logout,
+      demoMode,
+      loginDemo,
+      loginWithGoogle,
+      registrationOpen,
+      googleClientId,
+      sessionExpired,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

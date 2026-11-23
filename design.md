@@ -9,6 +9,14 @@
 
 ## 1. Color palette
 
+> **2026-11-23 — current values live in `apps/web/app/globals.css`.** The dark-first redesign
+> replaced the blue brand with violet `252 95% 70%` (dark; 5.2:1 as text and for the dark
+> label on it) / `252 80% 56%` (light; 6.8:1 with white), a cyan accent (`190 95% 60%`),
+> zinc neutrals (`--background: 240 10% 4%`), `--surface-raised` and `--glow`. Dark is the
+> default; `data-theme="light"` / `"system"` are opt-in. Utilities: `.bg-grid`,
+> `.text-gradient`, `.text-gradient-brand`, `.card-interactive`, `shadow-glow`,
+> `shadow-panel`. The tables below are the original spec.
+
 Defined as HSL CSS variables (shadcn/ui convention). Ship **dark as the default**, light as opt-in.
 
 ### Neutrals (slate-based)

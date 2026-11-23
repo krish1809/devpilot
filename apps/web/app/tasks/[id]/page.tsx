@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 
 import { DiffView } from "@/components/DiffView";
-import { Disclosure, SectionTitle, Timeline } from "@/components/RunParts";
+import { Disclosure, RunPipeline, SectionTitle, Timeline } from "@/components/RunParts";
 import { Alert, ErrorAlert } from "@/components/ui/alert";
 import { StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -382,16 +382,23 @@ function RunView({
 }) {
   const tokens = run.prompt_tokens + run.completion_tokens;
   const awaitingApproval = run.status === "validated" && !readOnly;
+  // Early showcase runs predate usage tracking: say so instead of showing 0.
+  const untracked = run.llm_calls === 0 && Boolean(run.diff) && run.status !== "running";
+  const notRecorded = (
+    <span className="text-muted-foreground" title="This run predates usage tracking">
+      not recorded
+    </span>
+  );
   const meta: [string, React.ReactNode][] = [
     [
       "Model",
-      <span key="m" className="font-mono">
-        {run.model}
+      <span key="m" className="font-mono" title={run.model}>
+        {run.model.replace(/^openai\//, "")}
       </span>,
     ],
-    ["Attempts", run.attempts],
-    ["LLM calls", run.llm_calls],
-    ["Tokens", tokens.toLocaleString()],
+    ["Attempts", untracked ? notRecorded : run.attempts],
+    ["LLM calls", untracked ? notRecorded : run.llm_calls],
+    ["Tokens", untracked ? notRecorded : tokens.toLocaleString()],
     [
       "Tests",
       run.test_passed === null ? (
@@ -410,19 +417,24 @@ function RunView({
 
   return (
     <Card>
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-5 py-4">
-        <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-          Run #{run.id}
-        </h2>
-        <StatusBadge status={run.status} />
+      <div className="space-y-4 border-b border-border px-5 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
+            Run <span className="font-mono text-muted-foreground">#{run.id}</span>
+          </h2>
+          <StatusBadge status={run.status} />
+        </div>
+        <RunPipeline stages={run.events.map((e) => e.stage)} status={run.status} />
       </div>
 
       <CardContent className="space-y-6 p-5">
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-3 xl:grid-cols-5">
+        <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border text-sm sm:grid-cols-3 xl:grid-cols-5">
           {meta.map(([label, value]) => (
-            <div key={label} className="min-w-0">
-              <dt className="text-xs text-muted-foreground">{label}</dt>
-              <dd className="truncate font-medium">{value}</dd>
+            <div key={label} className="min-w-0 bg-surface px-3.5 py-3">
+              <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                {label}
+              </dt>
+              <dd className="mt-1 truncate font-medium">{value}</dd>
             </div>
           ))}
         </dl>

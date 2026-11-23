@@ -2,75 +2,83 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Dark is the default look (a dev tool); light is opt-in via the toggle
+   (data-theme="light"), and "system" follows the OS. */
 :root {
+  --radius: 0.75rem;
+  --background: 240 10% 4%;
+  --surface: 240 8% 7%;
+  --surface-raised: 240 7% 9.5%;
+  --muted: 240 6% 12%;
+  --muted-foreground: 240 5% 65%;
+  --border: 240 5% 16%;
+  --foreground: 0 0% 97%;
+  /* One violet for fills and text: 5.2:1 as text on the background and
+     5.2:1 for the dark button label on it (WCAG AA). */
+  --primary: 252 95% 70%;
+  --primary-foreground: 240 10% 4%;
+  --accent: 190 95% 60%;
+  --success: 152 70% 45%;
+  --warning: 38 92% 55%;
+  --destructive: 0 80% 60%;
+  --info: 199 89% 55%;
+  --ring: 252 95% 70%;
+  --success-fg: 152 65% 58%;
+  --warning-fg: 43 96% 62%;
+  --destructive-fg: 0 91% 72%;
+  --info-fg: 199 89% 66%;
+  --glow: 252 95% 70%;
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
   --background: 0 0% 100%;
-  --surface: 210 20% 98%;
-  --muted: 210 16% 93%;
-  --muted-foreground: 222 10% 42%;
-  --border: 214 20% 88%;
-  --foreground: 222 30% 12%;
-  --primary: 221 83% 53%;
+  --surface: 240 20% 98.5%;
+  --surface-raised: 0 0% 100%;
+  --muted: 240 12% 94%;
+  --muted-foreground: 240 6% 38%;
+  --border: 240 10% 89%;
+  --foreground: 240 15% 8%;
+  --primary: 252 80% 56%;
   --primary-foreground: 0 0% 100%;
-  --accent: 262 83% 58%;
-  --success: 142 71% 45%;
+  --accent: 192 90% 40%;
+  --success: 152 65% 38%;
   --warning: 38 92% 50%;
   --destructive: 0 72% 51%;
-  --info: 199 89% 48%;
-  --ring: 221 83% 53%;
-  --radius: 0.625rem;
-  /* Status text colors: the fills above at 4.5:1+ contrast on light surfaces
-     (WCAG AA), used for badge/alert text. */
-  --success-fg: 142 72% 26%;
+  --info: 199 89% 45%;
+  --ring: 252 80% 56%;
+  --success-fg: 152 72% 24%;
   --warning-fg: 30 90% 30%;
   --destructive-fg: 0 74% 40%;
   --info-fg: 200 90% 30%;
+  --glow: 252 80% 60%;
   color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --background: 222 18% 8%;
-    --surface: 222 16% 11%;
-    --muted: 222 14% 16%;
-    --muted-foreground: 215 14% 62%;
-    --border: 222 12% 20%;
-    --foreground: 210 20% 96%;
-    --primary: 217 91% 60%;
-    --accent: 263 90% 66%;
-    --success: 142 71% 45%;
-    --warning: 38 92% 50%;
-    --destructive: 0 72% 51%;
-    --info: 199 89% 48%;
-    --ring: 217 91% 60%;
-    --primary-foreground: 222 47% 8%;
-    --success-fg: 142 69% 58%;
-    --warning-fg: 43 96% 58%;
-    --destructive-fg: 0 91% 71%;
-    --info-fg: 199 89% 62%;
-    color-scheme: dark;
-  }
-}
-
-:root[data-theme="dark"] {
-  color-scheme: dark;
-  --background: 222 18% 8%;
-  --surface: 222 16% 11%;
-  --muted: 222 14% 16%;
-  --muted-foreground: 215 14% 62%;
-  --border: 222 12% 20%;
-  --foreground: 210 20% 96%;
-  --primary: 217 91% 60%;
-  --accent: 263 90% 66%;
-  --success: 142 71% 45%;
+@media (prefers-color-scheme: light) {
+  :root[data-theme="system"] {
+  --background: 0 0% 100%;
+  --surface: 240 20% 98.5%;
+  --surface-raised: 0 0% 100%;
+  --muted: 240 12% 94%;
+  --muted-foreground: 240 6% 38%;
+  --border: 240 10% 89%;
+  --foreground: 240 15% 8%;
+  --primary: 252 80% 56%;
+  --primary-foreground: 0 0% 100%;
+  --accent: 192 90% 40%;
+  --success: 152 65% 38%;
   --warning: 38 92% 50%;
   --destructive: 0 72% 51%;
-  --info: 199 89% 48%;
-  --ring: 217 91% 60%;
-  --primary-foreground: 222 47% 8%;
-  --success-fg: 142 69% 58%;
-  --warning-fg: 43 96% 58%;
-  --destructive-fg: 0 91% 71%;
-  --info-fg: 199 89% 62%;
+  --info: 199 89% 45%;
+  --ring: 252 80% 56%;
+  --success-fg: 152 72% 24%;
+  --warning-fg: 30 90% 30%;
+  --destructive-fg: 0 74% 40%;
+  --info-fg: 200 90% 30%;
+  --glow: 252 80% 60%;
+  color-scheme: light;
+  }
 }
 
 * {
@@ -84,7 +92,69 @@ html {
 body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
-  font-feature-settings: "rlig" 1, "calt" 1;
+  font-feature-settings: "rlig" 1, "calt" 1, "cv11" 1;
+}
+
+/* A soft violet/cyan glow behind every page. Decorative, fixed, never
+   intercepts input. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(56rem 28rem at 50% -12%, hsl(var(--glow) / 0.16), transparent 70%),
+    radial-gradient(36rem 22rem at 100% 0%, hsl(var(--accent) / 0.07), transparent 70%);
+}
+
+::selection {
+  background: hsl(var(--primary) / 0.35);
+}
+
+@layer components {
+  /* Faint engineering grid, faded out toward the edges (landing hero). */
+  .bg-grid {
+    background-image:
+      linear-gradient(hsl(var(--foreground) / 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--foreground) / 0.05) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 40%, transparent 100%);
+  }
+
+  .text-gradient {
+    background-image: linear-gradient(
+      100deg,
+      hsl(var(--foreground)) 10%,
+      hsl(var(--primary)) 55%,
+      hsl(var(--accent)) 95%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* For short phrases: brand colors only, no white start. */
+  .text-gradient-brand {
+    background-image: linear-gradient(100deg, hsl(var(--primary)), hsl(var(--accent)));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* A card that lifts on hover: brighter border plus a faint glow. */
+  .card-interactive {
+    transition:
+      border-color 150ms ease,
+      background-color 150ms ease,
+      box-shadow 150ms ease,
+      transform 150ms ease;
+  }
+  .card-interactive:hover {
+    border-color: hsl(var(--primary) / 0.45);
+    background-color: hsl(var(--surface-raised));
+    box-shadow: 0 0 0 1px hsl(var(--primary) / 0.12), 0 12px 32px -12px hsl(var(--glow) / 0.35);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

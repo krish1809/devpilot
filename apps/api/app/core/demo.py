@@ -4,7 +4,8 @@ Free hosting can't run the agent's Docker sandbox, so a public deployment is a
 read-only showcase of real runs and benchmark results recorded locally. With
 ``DEMO_MODE=true``:
 
-- every state-changing request is refused (403) except logging in and the
+- every state-changing request is refused (403) except signing in (password,
+  Google — a Google sign-in may create a read-only account) and the
   password-reset pair, so no one can start agent runs, approve PRs, register,
   or create data (a reset only changes the caller's own password, and the demo
   user is excluded from resets);
@@ -32,6 +33,7 @@ _SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 _ALLOWED_WRITES = {
     "/api/v1/auth/login",
     "/api/v1/auth/demo",
+    "/api/v1/auth/google",
     "/api/v1/auth/forgot-password",
     "/api/v1/auth/reset-password",
 }

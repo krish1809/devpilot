@@ -131,7 +131,13 @@ export interface RetrievedChunk {
 }
 
 export interface RunRetrieval {
-  index: { id: number; files: number; chunks: number; built_now: boolean; model: string };
+  index: {
+    id: number;
+    files: number;
+    chunks: number;
+    built_now: boolean;
+    model: string;
+  };
   boosted_paths: string[];
   candidates: string[];
   context: RetrievedChunk[];
@@ -277,4 +283,13 @@ export interface EvalRunSummary {
 export interface EvalRunDetail extends EvalRunSummary {
   instance_ids: string[];
   results: EvalResult[];
+}
+
+/** GET /api/v1/config — public, non-secret settings. */
+export interface PublicConfig {
+  demo_mode: boolean;
+  /** Absent on older APIs; treated as "open unless demo mode". */
+  registration_open?: boolean;
+  /** Google OAuth client ID; empty when Google sign-in is off. */
+  google_client_id?: string;
 }
