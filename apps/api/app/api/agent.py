@@ -23,6 +23,7 @@ from app.schemas.agent import (
 from app.services import agent as agent_service
 from app.services import audit
 from app.services.run_stream import run_events
+from app.services.user import get_user_by_email
 
 router = APIRouter(tags=["agent"])
 
@@ -42,15 +43,31 @@ def _run_response(db, run) -> RunResponse:  # noqa: ANN001
     return resp
 
 
+def _data_owner_id(db, user) -> int:  # noqa: ANN001
+    """Whose tasks and runs this user sees.
+
+    Normally their own. On the read-only showcase every signed-in account
+    (the demo visitor, a Google sign-in, the bootstrap owner) sees the recorded
+    showcase runs, which belong to the demo user; writes are refused there by
+    ReadOnlyShowcaseMiddleware regardless.
+    """
+    settings = get_settings()
+    if settings.demo_mode:
+        showcase = get_user_by_email(db, settings.demo_user_email)
+        if showcase is not None:
+            return showcase.id
+    return user.id
+
+
 def _owned_task(db, task_id: int, user) -> object:  # noqa: ANN001
-    task = agent_service.get_task(db, task_id, user.id)
+    task = agent_service.get_task(db, task_id, _data_owner_id(db, user))
     if task is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
     return task
 
 
 def _owned_run(db, run_id: int, user) -> object:  # noqa: ANN001
-    run = agent_service.get_run(db, run_id, user.id)
+    run = agent_service.get_run(db, run_id, _data_owner_id(db, user))
     if run is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
     return run
@@ -63,7 +80,7 @@ def create_task(data: TaskCreate, db: DbSession, current_user: CurrentUser) -> T
 
 @router.get("/tasks", response_model=list[TaskResponse])
 def list_tasks(db: DbSession, current_user: CurrentUser) -> list[TaskResponse]:
-    return agent_service.list_tasks(db, current_user.id)
+    return agent_service.list_tasks(db, _data_owner_id(db, current_user))
 
 
 @router.get("/tasks/{task_id}", response_model=TaskResponse)
@@ -116,7 +133,7 @@ def stream_run(
     in the URL — URLs end up in access logs.
     """
     _owned_run(db, run_id, current_user)
-    user_id = current_user.id
+    user_id = _data_owner_id(db, current_user)
 
     def read() -> dict | None:
         db.expire_all()  # the graph commits from other sessions

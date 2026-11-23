@@ -162,13 +162,25 @@ def test_endpoint_is_off_without_a_client_id(
 
 
 def test_works_in_the_read_only_showcase(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
+    client: TestClient, db_session: Session, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    from app.models.task import Task
+
     monkeypatch.setattr(get_settings(), "demo_mode", True)
+    # A recorded showcase run belongs to the demo user...
+    demo_token = client.post("/api/v1/auth/demo").json()["access_token"]
+    demo_id = client.get(ME, headers={"Authorization": f"Bearer {demo_token}"}).json()["id"]
+    task = Task(owner_id=demo_id, repo_url="https://github.com/o/r.git", test_command="pytest")
+    db_session.add(task)
+    db_session.commit()
+
+    # ...and a Google account sees it too, read-only.
     response = _sign_in(client, _credential())
     assert response.status_code == 200
     headers = {"Authorization": f"Bearer {response.json()['access_token']}"}
-    assert client.get("/api/v1/tasks", headers=headers).status_code == 200
+    listed = client.get("/api/v1/tasks", headers=headers).json()
+    assert [t["id"] for t in listed] == [task.id]
+    assert client.get(f"/api/v1/tasks/{task.id}", headers=headers).status_code == 200
     # Still read-only for everything else.
     assert client.post("/api/v1/projects", json={"name": "x"}, headers=headers).status_code == 403
 

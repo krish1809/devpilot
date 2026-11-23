@@ -73,3 +73,18 @@ def test_hosted_database_urls_use_the_psycopg_driver(given: str) -> None:
     assert Settings(database_url=given).database_url == (
         "postgresql+psycopg://u:p@host/db?sslmode=require"
     )
+
+
+def test_outside_showcase_users_only_see_their_own_tasks(client: TestClient) -> None:
+    """The showcase data-owner rule must not leak tasks between real accounts."""
+
+    def token(email: str) -> dict[str, str]:
+        client.post("/api/v1/auth/register", json={"email": email, "password": "password-1"})
+        t = client.post("/api/v1/auth/login", json={"email": email, "password": "password-1"})
+        return {"Authorization": f"Bearer {t.json()['access_token']}"}
+
+    alice, bob = token("alice@example.com"), token("bob@example.com")
+    body = {"repo_url": "https://github.com/o/r.git", "test_command": "pytest"}
+    task = client.post("/api/v1/tasks", json=body, headers=alice).json()
+    assert client.get("/api/v1/tasks", headers=bob).json() == []
+    assert client.get(f"/api/v1/tasks/{task['id']}", headers=bob).status_code == 404
