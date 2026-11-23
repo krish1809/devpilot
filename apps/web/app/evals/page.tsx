@@ -14,7 +14,7 @@ import { EmptyState, PageHeader, PageLoading, Skeleton } from "@/components/ui/p
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import type { EvalConfigSummary, EvalResult, EvalRunDetail, EvalRunSummary } from "@/lib/types";
-import { formatDate } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 
 const CONFIG_LABELS: Record<string, string> = {
   rag: "RAG, issue only (realistic)",
@@ -153,6 +153,56 @@ function RunDetail({ run }: { run: EvalRunDetail }) {
   ).size;
   return (
     <>
+      <ul
+        aria-label="Resolve rate by configuration"
+        className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+      >
+        {run.summary.map((s) => {
+          const rate = s.scored ? s.resolved / s.scored : 0;
+          const gold = s.config === "gold";
+          return (
+            <li
+              key={s.config}
+              className="rounded-xl border border-border bg-surface/80 p-4 shadow-panel"
+            >
+              <p className="truncate text-xs text-muted-foreground">
+                {CONFIG_LABELS[s.config] ?? s.config}
+              </p>
+              <p className="mt-2 flex items-baseline gap-1.5">
+                <span
+                  className={cn(
+                    "text-3xl font-semibold tracking-tight",
+                    gold ? "text-muted-foreground" : "text-gradient",
+                  )}
+                >
+                  {s.resolved}
+                </span>
+                <span className="text-sm text-muted-foreground">/ {s.scored} resolved</span>
+              </p>
+              <div
+                className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted"
+                role="img"
+                aria-label={`${pct(rate)} resolved`}
+              >
+                <div
+                  className={cn(
+                    "h-full rounded-full",
+                    gold
+                      ? "bg-muted-foreground/50"
+                      : "bg-[linear-gradient(90deg,hsl(var(--primary)),hsl(var(--accent)))]",
+                  )}
+                  style={{ width: `${Math.round(rate * 100)}%` }}
+                />
+              </div>
+              {gold && (
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  Reference patches: checks the harness itself.
+                </p>
+              )}
+            </li>
+          );
+        })}
+      </ul>
       <Card>
         <CardHeader>
           <CardTitle className="text-base">

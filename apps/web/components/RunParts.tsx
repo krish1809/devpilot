@@ -78,3 +78,116 @@ export function Timeline({ events, running }: { events: RunEvent[]; running: boo
     </ol>
   );
 }
+
+export const PIPELINE_STEPS = [
+  "prepare",
+  "retrieve",
+  "plan",
+  "code",
+  "test",
+  "review",
+  "approve",
+  "publish",
+] as const;
+export type PipelineStep = (typeof PIPELINE_STEPS)[number];
+export type StepState = "done" | "current" | "waiting" | "failed" | "skipped" | "pending";
+
+const STAGE_ALIASES: Record<string, PipelineStep> = { start: "prepare" };
+
+// Where a finished run stopped, by status.
+const FAILED_AT: Partial<Record<string, PipelineStep>> = {
+  test_failed: "test",
+  review_failed: "review",
+  rejected: "approve",
+  publish_failed: "publish",
+};
+
+/** Derive each pipeline step's state from the run's events and status. */
+export function pipelineStates(stages: string[], status: string): Record<PipelineStep, StepState> {
+  const reached = new Set<PipelineStep>();
+  for (const s of stages) {
+    const step = STAGE_ALIASES[s] ?? s;
+    if ((PIPELINE_STEPS as readonly string[]).includes(step)) reached.add(step as PipelineStep);
+  }
+  // An approved or published run was approved, whatever the event log says.
+  if (status === "approved" || status === "published") reached.add("approve");
+  let furthest = -1;
+  PIPELINE_STEPS.forEach((s, i) => reached.has(s) && (furthest = i));
+
+  let stopAt = furthest;
+  let stopState: StepState = "current";
+  if (status === "published") {
+    stopAt = PIPELINE_STEPS.length;
+  } else if (status === "validated") {
+    stopAt = PIPELINE_STEPS.indexOf("approve");
+    stopState = "waiting";
+  } else if (status === "approved") {
+    stopAt = PIPELINE_STEPS.indexOf("publish");
+  } else if (FAILED_AT[status]) {
+    stopAt = PIPELINE_STEPS.indexOf(FAILED_AT[status]!);
+    stopState = "failed";
+  } else if (status === "error" || status === "cancelled") {
+    stopState = "failed";
+  }
+
+  const states = {} as Record<PipelineStep, StepState>;
+  PIPELINE_STEPS.forEach((step, i) => {
+    if (i < stopAt) states[step] = reached.has(step) ? "done" : "skipped";
+    else if (i === stopAt) states[step] = stopState;
+    else states[step] = "pending";
+  });
+  return states;
+}
+
+const STEP_STYLE: Record<StepState, string> = {
+  done: "border-success/40 bg-success/10 text-success-fg",
+  current: "border-primary/60 bg-primary/15 text-foreground shadow-glow",
+  waiting: "border-warning/50 bg-warning/10 text-warning-fg",
+  failed: "border-destructive/50 bg-destructive/10 text-destructive-fg",
+  skipped: "border-dashed border-border text-muted-foreground",
+  pending: "border-border text-muted-foreground/70",
+};
+
+const STEP_LABEL: Record<StepState, string> = {
+  done: "done",
+  current: "in progress",
+  waiting: "waiting for you",
+  failed: "stopped here",
+  skipped: "skipped",
+  pending: "not reached",
+};
+
+/** The agent graph as a horizontal stepper: where this run is, or where it stopped. */
+export function RunPipeline({ stages, status }: { stages: string[]; status: string }) {
+  const states = pipelineStates(stages, status);
+  return (
+    <ol aria-label="Agent pipeline" className="flex flex-wrap items-center gap-x-1.5 gap-y-2">
+      {PIPELINE_STEPS.map((step, i) => {
+        const state = states[step];
+        return (
+          <li key={step} className="flex shrink-0 items-center gap-1.5">
+            <span
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-[11px] font-medium",
+                STEP_STYLE[state],
+              )}
+              title={`${step}: ${STEP_LABEL[state]}`}
+            >
+              <span
+                aria-hidden
+                className={cn(
+                  "h-1.5 w-1.5 rounded-full bg-current",
+                  (state === "current" || state === "waiting") && "animate-pulse",
+                  state === "pending" && "opacity-40",
+                )}
+              />
+              {step}
+              <span className="sr-only">: {STEP_LABEL[state]}</span>
+            </span>
+            {i < PIPELINE_STEPS.length - 1 && <span aria-hidden className="h-px w-3 bg-border" />}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}

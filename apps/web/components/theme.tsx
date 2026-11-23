@@ -11,25 +11,25 @@ const STORAGE_KEY = "devpilot_theme";
 
 /**
  * Runs before first paint (inlined in <head>) so a saved theme never flashes.
- * The CSS tokens follow the OS unless <html data-theme> says otherwise.
+ * Dark is the default; "light" and "system" (follow the OS) are opt-in.
  */
-export const themeInitScript = `try{var t=localStorage.getItem("${STORAGE_KEY}");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}`;
+export const themeInitScript = `try{var t=localStorage.getItem("${STORAGE_KEY}");if(t==="light"||t==="system")document.documentElement.dataset.theme=t}catch(e){}`;
 
-function readTheme(): Theme {
+export function readTheme(): Theme {
   try {
     const t = window.localStorage.getItem(STORAGE_KEY);
-    return t === "light" || t === "dark" ? t : "system";
+    return t === "light" || t === "system" ? t : "dark";
   } catch {
-    return "system";
+    return "dark";
   }
 }
 
-function applyTheme(theme: Theme) {
+export function applyTheme(theme: Theme) {
   const root = document.documentElement;
-  if (theme === "system") delete root.dataset.theme;
+  if (theme === "dark") delete root.dataset.theme;
   else root.dataset.theme = theme;
   try {
-    if (theme === "system") window.localStorage.removeItem(STORAGE_KEY);
+    if (theme === "dark") window.localStorage.removeItem(STORAGE_KEY);
     else window.localStorage.setItem(STORAGE_KEY, theme);
   } catch {
     /* storage unavailable: the choice lasts for this page only */
@@ -37,14 +37,14 @@ function applyTheme(theme: Theme) {
 }
 
 const OPTIONS: { value: Theme; label: string; Icon: typeof Sun }[] = [
-  { value: "system", label: "System theme", Icon: Monitor },
-  { value: "light", label: "Light theme", Icon: Sun },
   { value: "dark", label: "Dark theme", Icon: Moon },
+  { value: "light", label: "Light theme", Icon: Sun },
+  { value: "system", label: "System theme", Icon: Monitor },
 ];
 
-/** A three-way toggle group: system / light / dark (each an aria-pressed button). */
+/** A three-way toggle group: dark (default) / light / system (aria-pressed buttons). */
 export function ThemeToggle({ className }: { className?: string }) {
-  const [theme, setTheme] = useState<Theme>("system");
+  const [theme, setTheme] = useState<Theme>("dark");
 
   useEffect(() => setTheme(readTheme()), []);
 

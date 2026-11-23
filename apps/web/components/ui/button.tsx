@@ -7,9 +7,11 @@ type Variant = "primary" | "secondary" | "outline" | "ghost" | "destructive";
 type Size = "sm" | "md" | "lg" | "icon";
 
 const variants: Record<Variant, string> = {
-  primary: "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90",
+  primary:
+    "bg-primary text-primary-foreground font-semibold shadow-[inset_0_1px_0_0_rgb(255_255_255/0.25)] hover:brightness-110 hover:shadow-glow",
   secondary: "bg-muted text-foreground hover:bg-border",
-  outline: "border border-border bg-background text-foreground hover:bg-muted",
+  outline:
+    "border border-border bg-surface/60 text-foreground hover:border-foreground/25 hover:bg-muted",
   ghost: "bg-transparent text-foreground hover:bg-muted",
   destructive: "bg-destructive text-white shadow-sm hover:bg-destructive/90",
 };
@@ -29,7 +31,7 @@ export function buttonClasses({
 }: { variant?: Variant; size?: Size; className?: string } = {}): string {
   return cn(
     "inline-flex shrink-0 items-center justify-center gap-2 rounded-md font-medium",
-    "transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+    "transition-[color,background-color,border-color,box-shadow,filter] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
     "focus-visible:ring-offset-2 focus-visible:ring-offset-background",
     "disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50",
     variants[variant],

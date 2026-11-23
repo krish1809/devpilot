@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 
+import { Logo } from "@/components/Logo";
 import { Nav } from "@/components/Nav";
 import { ThemeToggle, themeInitScript } from "@/components/theme";
 import { ToastProvider } from "@/components/ui/toast";
@@ -20,10 +21,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#111317" },
-  ],
+  themeColor: "#09090b",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -51,9 +49,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <main id="main" className="mx-auto w-full max-w-page flex-1 px-4 py-8 sm:px-6 sm:py-10">
               {children}
             </main>
-            <footer className="border-t border-border">
+            <footer className="border-t border-border/70">
               <div className="mx-auto flex max-w-page flex-col gap-2 px-4 py-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6">
-                <p>DevPilot — a human-supervised AI software engineer. Portfolio project.</p>
+                <p className="flex items-center gap-2">
+                  <Logo size="sm" />
+                  DevPilot — a human-supervised AI software engineer. Portfolio project.
+                </p>
                 <ThemeToggle className="self-start sm:hidden" />
                 <a
                   href="https://github.com/krish1809/devpilot"
